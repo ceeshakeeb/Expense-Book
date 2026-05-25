@@ -758,6 +758,70 @@ function exportCSV(){
   const a=document.createElement('a');a.href=url;a.download='fiberplane_'+currentBook().name+'.csv';a.click();
   toast('CSV exported ✓');
 }
+function exportPDF(){
+
+  const txns=S.transactions
+    .filter(t=>t.bookId===S.currentBookId)
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  if(!txns.length){
+    toast('No transactions found');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc=new jsPDF();
+
+  const book=currentBook();
+
+  const totalIncome=txns
+    .filter(t=>t.type==='income')
+    .reduce((s,t)=>s+t.amount,0);
+
+  const totalExpense=txns
+    .filter(t=>t.type==='expense')
+    .reduce((s,t)=>s+t.amount,0);
+
+  const balance=totalIncome-totalExpense;
+
+  doc.setFontSize(18);
+  doc.text('Fiberplane Expense Report',14,15);
+
+  doc.setFontSize(11);
+  doc.text(`Book: ${book.name}`,14,25);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`,14,32);
+
+  doc.text(`Income: ${fmt(totalIncome)}`,14,42);
+  doc.text(`Expense: ${fmt(totalExpense)}`,14,49);
+  doc.text(`Balance: ${fmt(balance)}`,14,56);
+
+  const rows=txns.map(t=>[
+    t.date,
+    t.type,
+    t.category,
+    fmt(t.amount),
+    t.remark || '-'
+  ]);
+
+  doc.autoTable({
+    startY:65,
+    head:[[
+      'Date',
+      'Type',
+      'Category',
+      'Amount',
+      'Remark'
+    ]],
+    body:rows,
+    styles:{
+      fontSize:9
+    }
+  });
+
+  doc.save(`fiberplane-${book.name}.pdf`);
+
+  toast('PDF exported');
+}
 
 // ═══════════════════════════════════════════════
 //  SHEET HELPERS
