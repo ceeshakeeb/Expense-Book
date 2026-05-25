@@ -804,15 +804,25 @@ function exportPDF(){
   doc.text(`Book: ${book.name}`,14,25);
   doc.text(`Generated: ${new Date().toLocaleDateString()}`,14,32);
 
-  doc.text(`Income: ${fmt(totalIncome)}`,14,42);
-  doc.text(`Expense: ${fmt(totalExpense)}`,14,49);
-  doc.text(`Balance: ${fmt(balance)}`,14,56);
+  const money = n => {
+  return 'Rs. ' + Number(n).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+};
 
+doc.text(`Income: ${money(totalIncome)}`, 14, 42);
+doc.text(`Expense: ${money(totalExpense)}`, 14, 49);
+doc.text(
+  `Balance: ${(balance < 0 ? '-' : '')}${money(Math.abs(balance))}`,
+  14,
+  56
+);
   const rows=txns.map(t=>[
     t.date,
     t.type,
     t.category,
-    fmt(t.amount),
+ 'Rs. ' + Number(t.amount).toLocaleString('en-IN'),
     t.remark || '-'
   ]);
 
