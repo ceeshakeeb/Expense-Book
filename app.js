@@ -650,11 +650,24 @@ function renderProfilePage(){
       <div class="info-row"><span class="label">Backup</span><span class="value"><span class="sync-status"><span class="sync-dot"></span>Saved locally</span></span></div>
     </div>
     <div class="profile-card">
-      <div class="section-title" style="margin-bottom:12px">Book Options</div>
-      <button class="btn btn-outline" style="margin-bottom:8px" onclick="openShareSheet()">👥 Share / Invite Members</button>
-      <button class="btn btn-outline" style="margin-bottom:8px" onclick="openBooksSheet()">📚 Switch / Manage Books</button>
-      <button class="btn btn-outline" onclick="exportCSV()">📤 Export as CSV</button>
-    </div>
+  <div class="section-title" style="margin-bottom:12px">Book Options</div>
+
+  <button class="btn btn-outline" style="margin-bottom:8px" onclick="openShareSheet()">
+    👥 Share / Invite Members
+  </button>
+
+  <button class="btn btn-outline" style="margin-bottom:8px" onclick="openBooksSheet()">
+    📚 Switch / Manage Books
+  </button>
+
+  <button class="btn btn-outline" style="margin-bottom:8px" onclick="exportCSV()">
+    📤 Export as CSV
+  </button>
+
+  <button class="btn btn-primary" onclick="exportPDF()">
+    📄 Export as PDF
+  </button>
+</div>
     <div class="profile-card">
       <button class="btn btn-danger" onclick="confirmLogout()">Sign Out</button>
     </div>
