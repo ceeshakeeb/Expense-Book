@@ -393,59 +393,187 @@ function renderPage(){
 
 function renderDashboard(){
   const txns=bookTxns(S.currentBookId,S.currentMonth);
-  const totalIncome=txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const totalExpense=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+
+  const totalIncome=txns
+    .filter(t=>t.type==='income')
+    .reduce((s,t)=>s+t.amount,0);
+
+  const totalExpense=txns
+    .filter(t=>t.type==='expense')
+    .reduce((s,t)=>s+t.amount,0);
+
   const balance=totalIncome-totalExpense;
 
   const cats=bookCats(S.currentBookId);
   const catMap={};
-  txns.filter(t=>t.type==='expense').forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+t.amount;});
-  const sorted=Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
-  const maxAmt=sorted.length?sorted[0][1]:1;
 
-  const catRows=sorted.map(([cat,amt],i)=>{
-    const pct=totalExpense>0?Math.round(amt/totalExpense*100):0;
-    const barW=Math.round(amt/maxAmt*100);
-    const col=CAT_COLORS[cats.indexOf(cat)%CAT_COLORS.length]||CAT_COLORS[i%CAT_COLORS.length];
-    return `<div class="cat-row">
-      <div class="cat-row-top">
-        <div class="cat-info"><div class="cat-dot" style="background:${col}"></div>${catEmoji(cat)} ${cat}</div>
-        <div class="cat-amt">${fmt(amt)}</div>
-      </div>
-      <div class="cat-bar-bg"><div class="cat-bar" style="width:${barW}%;background:${col}"></div></div>
-      <div class="cat-pct">${pct}% of expenses</div>
-    </div>`;
-  }).join('');
+  txns
+    .filter(t=>t.type==='expense')
+    .forEach(t=>{
+      catMap[t.category]=(catMap[t.category]||0)+t.amount;
+    });
 
-  const recent=[...txns].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
-  const recentRows=recent.length?recent.map(t=>{
-    const idx=cats.indexOf(t.category);
-    const col=CAT_COLORS[idx>=0?idx%CAT_COLORS.length:0];
-    return `<div class="txn-item" onclick="openTxnSheet('${t.id}')">
-      <div class="txn-icon" style="background:${col}22">${catEmoji(t.category)}</div>
-      <div class="txn-body">
-        <div class="txn-cat">${t.category}</div>
-        <div class="txn-meta">${t.remark||t.date}</div>
-      </div>
-      <div class="txn-right">
-        <div class="txn-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
-        <div class="txn-date">${t.date}</div>
-      </div>
-    </div>`;
-  }).join(''):`<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No transactions yet<br><small>Tap + to add your first entry</small></div></div>`;
+  const sorted=Object.entries(catMap)
+    .sort((a,b)=>b[1]-a[1]);
+
+  const recent=[...txns]
+    .sort((a,b)=>b.date.localeCompare(a.date))
+    .slice(0,6);
+
+  const recentRows=recent.length
+  ? recent.map(t=>{
+      const idx=cats.indexOf(t.category);
+      const col=CAT_COLORS[idx>=0?idx%CAT_COLORS.length:0];
+
+      return `
+      <div class="txn-item" onclick="openTxnSheet('${t.id}')">
+        <div class="txn-icon" style="background:${col}22">
+          ${catEmoji(t.category)}
+        </div>
+
+        <div class="txn-body">
+          <div class="txn-cat">${t.category}</div>
+          <div class="txn-meta">${t.remark||t.date}</div>
+        </div>
+
+        <div class="txn-right">
+          <div class="txn-amt ${t.type}">
+            ${t.type==='income'?'+':'-'}${fmt(t.amount)}
+          </div>
+          <div class="txn-date">${t.date}</div>
+        </div>
+      </div>`;
+    }).join('')
+  : `
+  <div class="empty-state">
+    <div class="empty-icon">📋</div>
+    <div class="empty-text">
+      No transactions yet
+      <br>
+      <small>Tap + to add your first entry</small>
+    </div>
+  </div>`;
+
+  setTimeout(()=>{
+    renderExpenseChart(catMap,totalExpense);
+  },100);
 
   return `
     <div class="summary-wrap">
-      <div class="s-card"><div class="s-label">Income</div><div class="s-val income">${fmt(totalIncome)}</div></div>
-      <div class="s-card"><div class="s-label">Expense</div><div class="s-val expense">${fmt(totalExpense)}</div></div>
+      <div class="s-card">
+        <div class="s-label">Income</div>
+        <div class="s-val income">${fmt(totalIncome)}</div>
+      </div>
+
+      <div class="s-card">
+        <div class="s-label">Expense</div>
+        <div class="s-val expense">${fmt(totalExpense)}</div>
+      </div>
+
       <div class="s-card balance-card">
-        <div class="s-label">Balance — ${monthLabel(S.currentMonth)}</div>
-        <div class="s-val ${balance>=0?'':'negative'}">${fmtSgn(balance)}</div>
+        <div class="s-label">
+          Balance — ${monthLabel(S.currentMonth)}
+        </div>
+
+        <div class="s-val ${balance>=0?'':'negative'}">
+          ${fmtSgn(balance)}
+        </div>
       </div>
     </div>
-    ${sorted.length?`<div class="section"><div class="section-hdr"><div class="section-title">Category breakdown</div></div>${catRows}</div>`:''}
-    <div class="section"><div class="section-hdr"><div class="section-title">Recent entries</div><span class="see-all" onclick="showPage('transactions')">See all</span></div>${recentRows}</div>
+
+    ${sorted.length ? `
+    <div class="section">
+      <div class="section-hdr">
+        <div class="section-title">
+          Expense Breakdown
+        </div>
+      </div>
+
+      <div style="
+        position:relative;
+        height:280px;
+        display:flex;
+        justify-content:center;
+        align-items:center;
+      ">
+        <canvas id="expenseChart"></canvas>
+
+        <div id="chartCenterText"
+          style="
+            position:absolute;
+            text-align:center;
+            pointer-events:none;
+          ">
+          <div style="
+            font-size:12px;
+            color:var(--text2)">
+            Total Expense
+          </div>
+
+          <div style="
+            font-size:20px;
+            font-weight:700">
+            ${fmt(totalExpense)}
+          </div>
+        </div>
+      </div>
+    </div>`:''}
+
+    <div class="section">
+      <div class="section-hdr">
+        <div class="section-title">
+          Recent entries
+        </div>
+
+        <span class="see-all"
+          onclick="showPage('transactions')">
+          See all
+        </span>
+      </div>
+
+      ${recentRows}
+    </div>
   `;
+}
+let expenseChart=null;
+
+function renderExpenseChart(catMap,totalExpense){
+
+  const canvas=document.getElementById('expenseChart');
+  if(!canvas) return;
+
+  if(expenseChart){
+    expenseChart.destroy();
+  }
+
+  const labels=Object.keys(catMap);
+  const data=Object.values(catMap);
+
+  expenseChart=new Chart(canvas,{
+    type:'doughnut',
+
+    data:{
+      labels,
+      datasets:[{
+        data,
+        backgroundColor:CAT_COLORS,
+        borderWidth:0
+      }]
+    },
+
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+
+      cutout:'72%',
+
+      plugins:{
+        legend:{
+          position:'bottom'
+        }
+      }
+    }
+  });
 }
 
 function renderTransactions(){
