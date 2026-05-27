@@ -9,7 +9,29 @@ const CAT_EMOJI={
   'Salary':'💼','Freelance':'💻','Business':'📊','Investment':'📈',
   'Medical':'💊','Education':'📚','Gift':'🎁','Other':'📦'
 };
-const DEFAULT_CATS=['Entertainment','Fast Food','Grocery','Home Improvement','Travel','Fuel','Dress','Rent / Bills'];
+// Expense Categories
+const DEFAULT_EXPENSE_CATS=[
+  'Entertainment',
+  'Fast Food',
+  'Grocery',
+  'Home Improvement',
+  'Travel',
+  'Fuel',
+  'Dress',
+  'Rent / Bills',
+  'Medical',
+  'Education',
+  'Gift',
+  'Other'
+];
+
+// Income Categories
+const DEFAULT_INCOME_CATS=[
+  'Rental Income',
+  'Salary Income',  'Other',
+  'Business Income',
+  'Trade Income'
+];
 const BOOK_EMOJIS=['📒','📓','📔','📕','📗','📘','📙','💼','🏦','🏪','🏠','✈️'];
 
 function catEmoji(n){return CAT_EMOJI[n]||n.charAt(0).toUpperCase();}
@@ -29,7 +51,8 @@ let S={
   books:[],            // [{id,name,emoji,ownerId,members:[{userId,email,name,role}]}]
   currentBookId:null,
   transactions:[],     // [{id,bookId,type,amount,category,date,remark,createdBy}]
-  categories:{},       // {bookId:[cat,...]}
+      // {bookId:[cat,...]}
+  
   currentMonth:today().slice(0,7),
   currentPage:'dashboard'
 };
@@ -115,7 +138,10 @@ function loginUser(user){
     const book={id:uid(),name:'My Book',emoji:'📒',ownerId:user.id,members:[{userId:user.id,email:user.email,name:user.name,role:'owner'}]};
     S.books=[book];
     S.currentBookId=book.id;
-    S.categories[book.id]=[...DEFAULT_CATS];
+S.categories[book.id]={
+  expense:[...DEFAULT_EXPENSE_CATS],
+  income:[...DEFAULT_INCOME_CATS]
+};
     S.transactions=S.transactions||[];
   }
   if(!S.currentBookId)S.currentBookId=S.books[0].id;
@@ -359,7 +385,13 @@ function joinBook(){
   }catch{}
   // Add to own books
   S.books.push(found);
-  if(!S.categories[found.id])S.categories[found.id]=[...DEFAULT_CATS];
+ if(!S.categories[found.id]){
+
+  S.categories[found.id]={
+    expense:[...DEFAULT_EXPENSE_CATS],
+    income:[...DEFAULT_INCOME_CATS]
+  };
+}
   S.currentBookId=found.id;
   document.getElementById('headerBookName').textContent=found.name;
   document.getElementById('headerBookIcon').textContent=found.emoji;
@@ -497,7 +529,10 @@ function renderDashboard(){
 
   const balance=totalIncome-totalExpense;
 
-  const cats=bookCats(S.currentBookId);
+  const cats=bookCats(
+  S.currentBookId,
+  _txnType
+);
   const catMap={};
 
   txns
@@ -690,22 +725,67 @@ function renderTransactions(){
   }).join('');
   return`<div class="section">${rows}</div>`;
 }
-
 function renderCategoriesPage(){
-  const cats=bookCats(S.currentBookId);
-  const rows=cats.map((c,i)=>`
+
+  const expenseCats=
+    bookCats(
+      S.currentBookId,
+      'expense'
+    );
+
+  const incomeCats=
+    bookCats(
+      S.currentBookId,
+      'income'
+    );
+
+  const expenseRows=
+    expenseCats.map((c,i)=>`
     <div class="manage-cat-item">
-      <div class="cat-dot" style="background:${CAT_COLORS[i%CAT_COLORS.length]};width:10px;height:10px"></div>
-      <span style="font-size:15px">${catEmoji(c)} ${c}</span>
-      ${DEFAULT_CATS.includes(c)?`<span style="font-size:11px;color:var(--text3);margin-left:auto">default</span>`:`<button class="del-btn" onclick="deleteCat('${c}')">🗑</button>`}
-    </div>`).join('');
-  return`<div class="section">
-    <div class="section-title" style="margin-bottom:10px">Categories for "${currentBook().name}"</div>
-    ${rows}
-    <div class="add-row">
-      <input class="form-input" id="newCatInput" placeholder="Add new category..."/>
-      <button class="btn-sq" onclick="addCat()">+</button>
+      <div class="cat-dot"
+      style="background:
+      ${CAT_COLORS[i%CAT_COLORS.length]};
+      width:10px;height:10px">
+      </div>
+
+      <span>
+        ${catEmoji(c)} ${c}
+      </span>
     </div>
+  `).join('');
+
+  const incomeRows=
+    incomeCats.map((c,i)=>`
+    <div class="manage-cat-item">
+      <div class="cat-dot"
+      style="background:
+      ${CAT_COLORS[i%CAT_COLORS.length]};
+      width:10px;height:10px">
+      </div>
+
+      <span>
+        💰 ${c}
+      </span>
+    </div>
+  `).join('');
+
+  return `
+  <div class="section">
+
+    <div class="section-title">
+      Expense Categories
+    </div>
+
+    ${expenseRows}
+
+    <hr style="margin:18px 0">
+
+    <div class="section-title">
+      Income Categories
+    </div>
+
+    ${incomeRows}
+
   </div>`;
 }
 
@@ -819,15 +899,44 @@ function openTxnSheet(txnId){
 }
 
 function renderCatGrid(){
-  const grid=document.getElementById('catGrid');if(!grid)return;
-  const cats=bookCats(S.currentBookId);
-  grid.innerHTML=cats.map(c=>`<div class="cat-chip ${_selCat===c?'selected':''}" onclick="selCat('${c}')">${catEmoji(c)} ${c}</div>`).join('');
+
+  const grid=document.getElementById('catGrid');
+  if(!grid) return;
+
+  const cats=bookCats(
+    S.currentBookId,
+    _txnType
+  );
+
+  grid.innerHTML=cats.map(c=>`
+    <div class="cat-chip
+      ${_selCat===c?'selected':''}"
+      onclick="selCat('${c}')">
+
+      ${catEmoji(c)} ${c}
+    </div>
+  `).join('');
 }
 function selCat(c){_selCat=c;renderCatGrid();}
 function setTxnType(t){
+
   _txnType=t;
-  document.getElementById('btnI').className='type-btn'+(t==='income'?' active-income':'');
-  document.getElementById('btnE').className='type-btn'+(t==='expense'?' active-expense':'');
+
+  _selCat='';
+
+  document.getElementById('btnI').className=
+    'type-btn'+
+    (t==='income'
+    ?' active-income'
+    :'');
+
+  document.getElementById('btnE').className=
+    'type-btn'+
+    (t==='expense'
+    ?' active-expense'
+    :'');
+
+  renderCatGrid();
 }
 
 function saveTxn(id){
