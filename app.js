@@ -27,10 +27,10 @@ const DEFAULT_EXPENSE_CATS=[
 
 // Income Categories
 const DEFAULT_INCOME_CATS=[
-  'Rental Income',
-  'Salary Income',  'Other',
-  'Business Income',
-  'Trade Income'
+  'Salary',
+  'Business',
+  'Rental',
+  'Other'
 ];
 const BOOK_EMOJIS=['📒','📓','📔','📕','📗','📘','📙','💼','🏦','🏪','🏠','✈️'];
 
@@ -751,6 +751,10 @@ function renderCategoriesPage(){
       <span>
         ${catEmoji(c)} ${c}
       </span>
+
+      <button onclick="deleteCat('${c}','expense')">
+        ✕
+      </button>
     </div>
   `).join('');
 
@@ -764,8 +768,12 @@ function renderCategoriesPage(){
       </div>
 
       <span>
-        💰 ${c}
+        ${catEmoji(c)} ${c}
       </span>
+
+      <button onclick="deleteCat('${c}','income')">
+        ✕
+      </button>
     </div>
   `).join('');
 
@@ -778,7 +786,21 @@ function renderCategoriesPage(){
 
     ${expenseRows}
 
-    <hr style="margin:18px 0">
+    <div class="add-row" style="margin-top:12px">
+      <input
+        class="form-input"
+        id="newExpenseCat"
+        placeholder="Add expense category"
+      />
+
+      <button
+        class="btn-sq"
+        onclick="addCat('expense')">
+        +
+      </button>
+    </div>
+
+    <hr style="margin:22px 0">
 
     <div class="section-title">
       Income Categories
@@ -786,24 +808,77 @@ function renderCategoriesPage(){
 
     ${incomeRows}
 
+    <div class="add-row" style="margin-top:12px">
+      <input
+        class="form-input"
+        id="newIncomeCat"
+        placeholder="Add income category"
+      />
+
+      <button
+        class="btn-sq"
+        onclick="addCat('income')">
+        +
+      </button>
+    </div>
+
   </div>`;
 }
+function deleteCat(c,type){
 
-function deleteCat(c){
   if(guestBlocked()) return;
+
   const id=S.currentBookId;
-  S.categories[id]=(S.categories[id]||[]).filter(x=>x!==c);
-  saveUserData();renderPage();
+
+  S.categories[id][type] =
+    S.categories[id][type]
+      .filter(x=>x!==c);
+
+  saveUserData();
+  renderPage();
+
+  toast('Category removed');
 }
-function addCat(){
+}
+function addCat(type){
+
   if(guestBlocked()) return;
-  const inp=document.getElementById('newCatInput');
-  const n=inp.value.trim();if(!n)return;
+
+  const inp=document.getElementById(
+    type==='income'
+    ? 'newIncomeCat'
+    : 'newExpenseCat'
+  );
+
+  const n=inp.value.trim();
+
+  if(!n){
+    toast('Enter category name');
+    return;
+  }
+
   const id=S.currentBookId;
-  if(!S.categories[id])S.categories[id]=[...DEFAULT_CATS];
-  if(S.categories[id].includes(n)){toast('Category exists');return;}
-  S.categories[id].push(n);inp.value='';
-  saveUserData();renderPage();toast('"'+n+'" added ✓');
+
+  if(!S.categories[id]){
+    S.categories[id]={
+      expense:[...DEFAULT_EXPENSE_CATS],
+      income:[...DEFAULT_INCOME_CATS]
+    };
+  }
+
+  if(S.categories[id][type].includes(n)){
+    toast('Category already exists');
+    return;
+  }
+
+  S.categories[id][type].push(n);
+
+  inp.value='';
+
+  saveUserData();
+  renderPage();
+
+  toast(n+' added ✓');
 }
 
 function renderProfilePage(){
