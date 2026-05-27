@@ -43,7 +43,18 @@ html,body{height:100%;overflow:hidden;background:#f0f2f5;font-family:-apple-syst
 .auth-divider{text-align:center;color:var(--text3);font-size:13px;margin:14px 0;position:relative}
 .auth-divider::before,.auth-divider::after{content:'';position:absolute;top:50%;width:40%;height:1px;background:var(--border)}
 .auth-divider::before{left:0}.auth-divider::after{right:0}
-.auth-err{color:var(--red);font-size:13px;margin-top:8px;text-align:center;display:none}
+.auth-err{
+  display:none;
+  background:#ffe8e8;
+  border:1px solid #ffcccc;
+  color:#d62828;
+  font-size:13px;
+  font-weight:600;
+  text-align:center;
+  margin-top:12px;
+  padding:10px 12px;
+  border-radius:12px;
+}
 
 /* ── HEADER ──────────────────────────────────── */
 .header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 14px;flex-shrink:0}
