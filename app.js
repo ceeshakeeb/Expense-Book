@@ -131,7 +131,33 @@ function loginUser(user){
 function continueAsGuest(){
 
   S.isGuest=true;
+ S.user={
+    id:'guest',
+    name:'Guest User',
+    email:'guest@viewer.com',
+    initials:'GU'
+  };
 
+  // Create temporary view-only book
+  if(!S.books || !S.books.length){
+
+    const guestBook={
+      id:'guest-book',
+      name:'Demo Book',
+      emoji:'📒',
+      ownerId:'guest',
+      members:[]
+    };
+
+    S.books=[guestBook];
+    S.currentBookId=guestBook.id;
+
+    S.categories[guestBook.id]=[
+      ...DEFAULT_CATS
+    ];
+
+    S.transactions=[];
+  }
   document
     .getElementById('authScreen')
     .classList.remove('active');
@@ -169,12 +195,35 @@ function requireLogin(){
   return false;
 }
 function logout(){
-  saveUserData();S={user:null,books:[],currentBookId:null,transactions:[],categories:{},currentMonth:today().slice(0,7),currentPage:'dashboard'};
+
+  S.isGuest=false;
+
+  saveUserData();
+
+  S={
+    user:null,
+    isGuest:false,
+    books:[],
+    currentBookId:null,
+    transactions:[],
+    categories:{},
+    currentMonth:today().slice(0,7),
+    currentPage:'dashboard'
+  };
+
   document.getElementById('mainScreen').classList.remove('active');
   document.getElementById('authScreen').classList.add('active');
   closeSheetNow();
 }
+function guestBlocked(){
 
+  if(S.isGuest){
+    toast('Please login to continue');
+    return true;
+  }
+
+  return false;
+}
 function saveUserData(){
   if(!S.user)return;
   const key='fp_data_'+S.user.id;
@@ -256,6 +305,7 @@ function pickEmoji(el,e){
 }
 
 function createBook(){
+  if(guestBlocked()) return;
   const name=document.getElementById('newBookName').value.trim();
   if(!name){toast('Enter a book name');return;}
   const book={id:uid(),name,emoji:window._newBookEmoji||'📒',ownerId:S.user.id,members:[{userId:S.user.id,email:S.user.email,name:S.user.name,role:'owner'}]};
@@ -284,6 +334,7 @@ function openJoinBookSheet(){
 }
 
 function joinBook(){
+  if(guestBlocked()) return;
   const id=document.getElementById('joinBookId').value.trim();
   // Scan all user data for this book ID
   const users=getUsers();
@@ -321,6 +372,7 @@ function joinBook(){
 //  SHARE / INVITE MEMBERS
 // ═══════════════════════════════════════════════
 function openShareSheet(){
+  if(guestBlocked()) return;
   const book=currentBook();
   const isOwner=book.ownerId===S.user.id;
   const members=book.members.map(m=>`
@@ -390,6 +442,7 @@ function inviteByEmail(){
 }
 
 function removeMember(userId){
+  if(guestBlocked()) return;
   const book=currentBook();
   book.members=book.members.filter(m=>m.userId!==userId);
   saveUserData();
@@ -657,11 +710,13 @@ function renderCategoriesPage(){
 }
 
 function deleteCat(c){
+  if(guestBlocked()) return;
   const id=S.currentBookId;
   S.categories[id]=(S.categories[id]||[]).filter(x=>x!==c);
   saveUserData();renderPage();
 }
 function addCat(){
+  if(guestBlocked()) return;
   const inp=document.getElementById('newCatInput');
   const n=inp.value.trim();if(!n)return;
   const id=S.currentBookId;
@@ -776,6 +831,7 @@ function setTxnType(t){
 }
 
 function saveTxn(id){
+  if(guestBlocked()) return;
   const amt=parseFloat(document.getElementById('fAmt').value);
   const date=document.getElementById('fDate').value;
   const remark=document.getElementById('fRemark').value.trim();
@@ -795,9 +851,21 @@ function saveTxn(id){
 }
 
 function deleteTxn(id){
-  if(!confirm('Delete this entry?'))return;
-  S.transactions=S.transactions.filter(t=>t.id!==id);
-  saveUserData();closeSheetNow();toast('Entry deleted');
+
+  if(guestBlocked()) return;
+
+  if(!confirm('Delete this entry?'))
+    return;
+
+  S.transactions=
+    S.transactions.filter(
+      t=>t.id!==id
+    );
+
+  saveUserData();
+  closeSheetNow();
+
+  toast('Entry deleted');
 }
 
 // ═══════════════════════════════════════════════
