@@ -25,6 +25,7 @@ function today(){return new Date().toISOString().slice(0,10);}
 // ═══════════════════════════════════════════════
 let S={
   user:null,           // {id,name,email,initials}
+  isGuest:false, // NEW
   books:[],            // [{id,name,emoji,ownerId,members:[{userId,email,name,role}]}]
   currentBookId:null,
   transactions:[],     // [{id,bookId,type,amount,category,date,remark,createdBy}]
@@ -127,7 +128,46 @@ function loginUser(user){
   renderMonthTabs();showPage('dashboard');
   toast('Welcome back, '+S.user.name.split(' ')[0]+'! 👋');
 }
+function continueAsGuest(){
 
+  S.isGuest=true;
+
+  document
+    .getElementById('authScreen')
+    .classList.remove('active');
+
+  document
+    .getElementById('mainScreen')
+    .classList.add('active');
+
+  document
+    .getElementById('userAvatar')
+    .textContent='👁';
+
+  document
+    .getElementById('headerBookName')
+    .textContent='Guest Mode';
+
+  document
+    .getElementById('headerBookIcon')
+    .textContent='👀';
+
+  renderMonthTabs();
+  showPage('dashboard');
+
+  toast('Guest Mode — View Only');
+}
+function requireLogin(){
+
+  if(!S.isGuest) return true;
+
+  alert(
+    'Login required\n\n' +
+    'Please sign in to add or edit data.'
+  );
+
+  return false;
+}
 function logout(){
   saveUserData();S={user:null,books:[],currentBookId:null,transactions:[],categories:{},currentMonth:today().slice(0,7),currentPage:'dashboard'};
   document.getElementById('mainScreen').classList.remove('active');
@@ -685,6 +725,7 @@ let _txnType='expense';
 let _selCat='';
 
 function openTxnSheet(txnId){
+  if(!requireLogin()) return;
   const ex=txnId?S.transactions.find(t=>t.id===txnId):null;
   _txnType=ex?ex.type:'expense';
   _selCat=ex?ex.category:'';
