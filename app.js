@@ -839,7 +839,6 @@ function deleteCat(c,type){
 
   toast('Category removed');
 }
-}
 function addCat(type){
 
   if(guestBlocked()) return;
