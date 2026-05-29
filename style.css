@@ -208,4 +208,63 @@ html,body{height:100%;overflow:hidden;background:#f0f2f5;font-family:-apple-syst
 .info-row .value{color:var(--text);font-weight:500}
 .sync-status{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--green);font-weight:500}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+/* CATEGORY 3 DOT MENU */
+
+.manage-cat-item{
+  position:relative;
+}
+
+.cat-name{
+  flex:1;
+  font-size:14px;
+  color:var(--text);
+}
+
+.cat-menu-wrap{
+  margin-left:auto;
+}
+
+.cat-menu-btn{
+  border:none;
+  background:transparent;
+  color:var(--text2);
+  font-size:22px;
+  cursor:pointer;
+  padding:4px 8px;
+  border-radius:10px;
+}
+
+.cat-menu-btn:active{
+  background:var(--surface2);
+}
+
+.cat-popup-menu{
+  position:fixed;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:var(--shadow-lg);
+  overflow:hidden;
+  z-index:9999;
+  min-width:150px;
+}
+
+.cat-popup-item{
+  width:100%;
+  border:none;
+  background:none;
+  text-align:left;
+  padding:12px 14px;
+  cursor:pointer;
+  font-size:14px;
+  color:var(--text);
+}
+
+.cat-popup-item.delete{
+  color:var(--red);
+}
+
+.cat-popup-item:active{
+  background:var(--surface2);
+}
 
