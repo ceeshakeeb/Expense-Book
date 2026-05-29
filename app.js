@@ -908,31 +908,39 @@ function toggleCatMenu(e,c,type){
   menu.className='cat-popup-menu';
   menu.id='activeCatMenu';
 
-  menu.innerHTML=`
-    <button
-      class="cat-popup-item"
-      onclick="renameCategory('${c}','${type}')">
-      ✏️ Rename Category
-    </button>
+  const renameBtn=document.createElement('button');
+  renameBtn.className='cat-popup-item';
+  renameBtn.innerHTML='✏️ Rename Category';
 
-    <button
-      class="cat-popup-item delete"
-      onclick="confirmDeleteCategory('${c}','${type}')">
-      🗑 Delete Category
-    </button>
-  `;
+  renameBtn.addEventListener('click',function(ev){
+    ev.stopPropagation();
+    renameCategory(c,type);
+  });
+
+  const deleteBtn=document.createElement('button');
+  deleteBtn.className='cat-popup-item delete';
+  deleteBtn.innerHTML='🗑 Delete Category';
+
+  deleteBtn.addEventListener('click',function(ev){
+    ev.stopPropagation();
+    confirmDeleteCategory(c,type);
+  });
+
+  menu.appendChild(renameBtn);
+  menu.appendChild(deleteBtn);
 
   document.body.appendChild(menu);
 
-  menu.style.top=(rect.bottom+6)+'px';
+  menu.style.top=
+    (rect.bottom+6)+'px';
 
-  const left=
-    Math.min(
-      rect.left,
-      window.innerWidth-170
-    );
+  const left=Math.min(
+    rect.left,
+    window.innerWidth-180
+  );
 
-  menu.style.left=left+'px';
+  menu.style.left=
+    left+'px';
 
   setTimeout(()=>{
     document.addEventListener(
@@ -942,7 +950,6 @@ function toggleCatMenu(e,c,type){
     );
   },50);
 }
-
 function closeAllCatMenus(){
 
   const old=
@@ -959,7 +966,8 @@ function confirmDeleteCategory(c,type){
 
   const hasTransactions=
     S.transactions.some(t=>
-      t.bookId===S.currentBookId &&
+      t.bookId===
+      S.currentBookId &&
       t.category===c
     );
 
@@ -969,23 +977,29 @@ function confirmDeleteCategory(c,type){
   if(hasTransactions){
 
     msg=
-`⚠ This category already contains transactions.
+`⚠ Category contains transactions.
 
-Type "${c}" to permanently delete`;
+Type "${c}" to delete permanently`;
   }
 
-  const entered=prompt(msg);
+  const entered=
+    prompt(msg);
 
-  if(entered===null)
-    return;
+  if(
+    entered===null
+  ) return;
 
-  if(entered.trim()!==c){
-
-    toast('Category name mismatch');
+  if(
+    entered.trim()!==c
+  ){
+    toast(
+      'Category name mismatch'
+    );
     return;
   }
 
-  const bookId=S.currentBookId;
+  const bookId=
+    S.currentBookId;
 
   if(
     !S.categories[bookId] ||
@@ -994,6 +1008,20 @@ Type "${c}" to permanently delete`;
     toast('Category error');
     return;
   }
+
+  S.categories[bookId][type]=
+    S.categories[bookId][type]
+      .filter(
+        item=>item!==c
+      );
+
+  saveUserData();
+  renderPage();
+
+  toast(
+    c+' deleted ✓'
+  );
+}
 
   S.categories[bookId][type] =
     S.categories[bookId][type]
@@ -1027,11 +1055,20 @@ function renameCategory(c,type){
   const bookId=
     S.currentBookId;
 
+  if(
+    !S.categories[bookId] ||
+    !S.categories[bookId][type]
+  ){
+    toast('Category error');
+    return;
+  }
+
   const cats=
     S.categories[bookId][type];
 
-  if(cats.includes(cleanName)){
-
+  if(
+    cats.includes(cleanName)
+  ){
     toast(
       'Category already exists'
     );
@@ -1041,19 +1078,22 @@ function renameCategory(c,type){
   const index=
     cats.indexOf(c);
 
-  if(index===-1)
+  if(index===-1){
+    toast('Category not found');
     return;
+  }
 
   cats[index]=cleanName;
 
-  // update existing transactions
+  // update old transactions
   S.transactions.forEach(t=>{
 
     if(
       t.bookId===bookId &&
       t.category===c
     ){
-      t.category=cleanName;
+      t.category=
+        cleanName;
     }
   });
 
