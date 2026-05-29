@@ -742,38 +742,54 @@ function renderCategoriesPage(){
   const expenseRows=
     expenseCats.map((c,i)=>`
     <div class="manage-cat-item">
+
       <div class="cat-dot"
-      style="background:
-      ${CAT_COLORS[i%CAT_COLORS.length]};
-      width:10px;height:10px">
+      style="
+      background:${CAT_COLORS[i%CAT_COLORS.length]};
+      width:10px;
+      height:10px">
       </div>
 
-      <span>
+      <span class="cat-name">
         ${catEmoji(c)} ${c}
       </span>
 
-      <button onclick="deleteCat('${c}','expense')">
-        ✕
-      </button>
+      <div class="cat-menu-wrap">
+
+        <button
+          class="cat-menu-btn"
+          onclick="toggleCatMenu(event,'${c}','expense')">
+          ⋮
+        </button>
+
+      </div>
     </div>
   `).join('');
 
   const incomeRows=
     incomeCats.map((c,i)=>`
     <div class="manage-cat-item">
+
       <div class="cat-dot"
-      style="background:
-      ${CAT_COLORS[i%CAT_COLORS.length]};
-      width:10px;height:10px">
+      style="
+      background:${CAT_COLORS[i%CAT_COLORS.length]};
+      width:10px;
+      height:10px">
       </div>
 
-      <span>
+      <span class="cat-name">
         ${catEmoji(c)} ${c}
       </span>
 
-      <button onclick="deleteCat('${c}','income')">
-        ✕
-      </button>
+      <div class="cat-menu-wrap">
+
+        <button
+          class="cat-menu-btn"
+          onclick="toggleCatMenu(event,'${c}','income')">
+          ⋮
+        </button>
+
+      </div>
     </div>
   `).join('');
 
@@ -879,7 +895,95 @@ function addCat(type){
 
   toast(n+' added ✓');
 }
+function toggleCatMenu(e,c,type){
 
+  e.stopPropagation();
+
+  closeAllCatMenus();
+
+  const btn=e.currentTarget;
+  const rect=btn.getBoundingClientRect();
+
+  const menu=document.createElement('div');
+  menu.className='cat-popup-menu';
+  menu.id='activeCatMenu';
+
+  menu.innerHTML=`
+    <button
+      class="cat-popup-item delete"
+      onclick="confirmDeleteCategory('${c}','${type}')">
+      🗑 Delete Category
+    </button>
+  `;
+
+  document.body.appendChild(menu);
+
+  menu.style.top=(rect.bottom+6)+'px';
+  menu.style.left=(rect.left-120)+'px';
+
+  setTimeout(()=>{
+    document.addEventListener(
+      'click',
+      closeAllCatMenus,
+      {once:true}
+    );
+  },50);
+}
+
+function closeAllCatMenus(){
+
+  const old=
+    document.getElementById(
+      'activeCatMenu'
+    );
+
+  if(old) old.remove();
+}
+
+function confirmDeleteCategory(c,type){
+
+  closeAllCatMenus();
+
+  const hasTransactions=
+    S.transactions.some(t=>
+      t.bookId===S.currentBookId &&
+      t.category===c
+    );
+
+  let msg=
+`Type "${c}" to confirm deletion`;
+
+  if(hasTransactions){
+    msg=
+`⚠ This category contains transactions.
+
+Type "${c}" to permanently delete`;
+  }
+
+  const entered=prompt(msg);
+
+  if(entered===null)
+    return;
+
+  if(entered.trim()!==c){
+
+    toast('Category name mismatch');
+    return;
+  }
+
+  S.categories[
+    S.currentBookId
+  ][type]=
+    S.categories[
+      S.currentBookId
+    ][type]
+    .filter(x=>x!==c);
+
+  saveUserData();
+  renderPage();
+
+  toast(c+' deleted ✓');
+}
 function renderProfilePage(){
   const u=S.user;
   const book=currentBook();
