@@ -910,6 +910,12 @@ function toggleCatMenu(e,c,type){
 
   menu.innerHTML=`
     <button
+      class="cat-popup-item"
+      onclick="renameCategory('${c}','${type}')">
+      ✏️ Rename Category
+    </button>
+
+    <button
       class="cat-popup-item delete"
       onclick="confirmDeleteCategory('${c}','${type}')">
       🗑 Delete Category
@@ -919,7 +925,14 @@ function toggleCatMenu(e,c,type){
   document.body.appendChild(menu);
 
   menu.style.top=(rect.bottom+6)+'px';
-  menu.style.left=(rect.left-120)+'px';
+
+  const left=
+    Math.min(
+      rect.left,
+      window.innerWidth-170
+    );
+
+  menu.style.left=left+'px';
 
   setTimeout(()=>{
     document.addEventListener(
@@ -954,8 +967,9 @@ function confirmDeleteCategory(c,type){
 `Type "${c}" to confirm deletion`;
 
   if(hasTransactions){
+
     msg=
-`⚠ This category contains transactions.
+`⚠ This category already contains transactions.
 
 Type "${c}" to permanently delete`;
   }
@@ -971,18 +985,84 @@ Type "${c}" to permanently delete`;
     return;
   }
 
-  S.categories[
-    S.currentBookId
-  ][type]=
-    S.categories[
-      S.currentBookId
-    ][type]
-    .filter(x=>x!==c);
+  const bookId=S.currentBookId;
+
+  if(
+    !S.categories[bookId] ||
+    !S.categories[bookId][type]
+  ){
+    toast('Category error');
+    return;
+  }
+
+  S.categories[bookId][type] =
+    S.categories[bookId][type]
+      .filter(x=>x!==c);
 
   saveUserData();
   renderPage();
 
   toast(c+' deleted ✓');
+}
+function renameCategory(c,type){
+
+  closeAllCatMenus();
+
+  const newName=prompt(
+    'Rename category',
+    c
+  );
+
+  if(
+    !newName ||
+    !newName.trim()
+  ) return;
+
+  const cleanName=
+    newName.trim();
+
+  if(cleanName===c)
+    return;
+
+  const bookId=
+    S.currentBookId;
+
+  const cats=
+    S.categories[bookId][type];
+
+  if(cats.includes(cleanName)){
+
+    toast(
+      'Category already exists'
+    );
+    return;
+  }
+
+  const index=
+    cats.indexOf(c);
+
+  if(index===-1)
+    return;
+
+  cats[index]=cleanName;
+
+  // update existing transactions
+  S.transactions.forEach(t=>{
+
+    if(
+      t.bookId===bookId &&
+      t.category===c
+    ){
+      t.category=cleanName;
+    }
+  });
+
+  saveUserData();
+  renderPage();
+
+  toast(
+    'Category renamed ✓'
+  );
 }
 function renderProfilePage(){
   const u=S.user;
