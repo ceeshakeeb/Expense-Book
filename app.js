@@ -46,13 +46,16 @@ function today(){return new Date().toISOString().slice(0,10);}
 //  STATE
 // ═══════════════════════════════════════════════
 let S={
-  user:null,           // {id,name,email,initials}
-  isGuest:false, // NEW
-  books:[],            // [{id,name,emoji,ownerId,members:[{userId,email,name,role}]}]
+  user:null,
+  isGuest:false,
+
+  books:[],
   currentBookId:null,
-  transactions:[],     // [{id,bookId,type,amount,category,date,remark,createdBy}]
-      // {bookId:[cat,...]}
-  
+
+  transactions:[],
+
+  categories:{},
+
   currentMonth:today().slice(0,7),
   currentPage:'dashboard'
 };
@@ -178,9 +181,14 @@ function continueAsGuest(){
     S.books=[guestBook];
     S.currentBookId=guestBook.id;
 
-    S.categories[guestBook.id]=[
-      ...DEFAULT_CATS
-    ];
+ S.categories[guestBook.id]={
+  expense:[
+    ...DEFAULT_EXPENSE_CATS
+  ],
+  income:[
+    ...DEFAULT_INCOME_CATS
+  ]
+};
 
     S.transactions=[];
   }
@@ -261,7 +269,38 @@ function saveUserData(){
 // ═══════════════════════════════════════════════
 function currentBook(){return S.books.find(b=>b.id===S.currentBookId)||S.books[0];}
 function bookTxns(bookId,month){return S.transactions.filter(t=>t.bookId===bookId&&t.date.startsWith(month));}
-function bookCats(bookId){return S.categories[bookId]||DEFAULT_CATS;}
+function bookCats(bookId,type){
+
+  if(!S.categories){
+    S.categories={};
+  }
+
+  if(!S.categories[bookId]){
+
+    S.categories[bookId]={
+      expense:[
+        ...DEFAULT_EXPENSE_CATS
+      ],
+      income:[
+        ...DEFAULT_INCOME_CATS
+      ]
+    };
+  }
+
+  if(type){
+    return (
+      S.categories[bookId][type]
+      || []
+    );
+  }
+
+  return [
+    ...S.categories[bookId]
+      .expense,
+    ...S.categories[bookId]
+      .income
+  ];
+}
 
 function openBooksSheet(){
   document.getElementById('sheetBg').classList.add('open');
