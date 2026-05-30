@@ -27,10 +27,8 @@ const DEFAULT_EXPENSE_CATS=[
 
 // Income Categories
 const DEFAULT_INCOME_CATS=[
-  'Salary',
-  'Business',
-  'Rental',
-  'Other'
+  'Salary Income',
+  'Business Income'
 ];
 const BOOK_EMOJIS=['📒','📓','📔','📕','📗','📘','📙','💼','🏦','🏪','🏠','✈️'];
 
@@ -157,15 +155,7 @@ S.categories[book.id]={
   renderMonthTabs();showPage('dashboard');
   toast('Welcome back, '+S.user.name.split(' ')[0]+'! 👋');
 }
-function continueAsGuest(){
 
-  S.isGuest=true;
- S.user={
-    id:'guest',
-    name:'Guest User',
-    email:'guest@viewer.com',
-    initials:'GU'
-  };
 
   // Create temporary view-only book
   if(!S.books || !S.books.length){
@@ -217,15 +207,6 @@ function continueAsGuest(){
 
   toast('Guest Mode — View Only');
 }
-function requireLogin(){
-
-  if(!S.isGuest) return true;
-
-  alert(
-    'Login required\n\n' +
-    'Please sign in to add or edit data.'
-  );
-
   return false;
 }
 function logout(){
@@ -375,7 +356,10 @@ function createBook(){
   if(!name){toast('Enter a book name');return;}
   const book={id:uid(),name,emoji:window._newBookEmoji||'📒',ownerId:S.user.id,members:[{userId:S.user.id,email:S.user.email,name:S.user.name,role:'owner'}]};
   S.books.push(book);
-  S.categories[book.id]=[...DEFAULT_CATS];
+ S.categories[book.id]={
+  expense:[...DEFAULT_EXPENSE_CATS],
+  income:[...DEFAULT_INCOME_CATS]
+};
   S.currentBookId=book.id;
   document.getElementById('headerBookName').textContent=book.name;
   document.getElementById('headerBookIcon').textContent=book.emoji;
@@ -1062,15 +1046,6 @@ Type "${c}" to delete permanently`;
   );
 }
 
-  S.categories[bookId][type] =
-    S.categories[bookId][type]
-      .filter(x=>x!==c);
-
-  saveUserData();
-  renderPage();
-
-  toast(c+' deleted ✓');
-}
 function renameCategory(c,type){
 
   closeAllCatMenus();
