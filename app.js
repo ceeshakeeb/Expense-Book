@@ -90,6 +90,7 @@ function getUsers(){
 }
 function saveUsers(u){localStorage.setItem('fp_users',JSON.stringify(u));}
 
+function hashPassword(v){ let h=0; for(let i=0;i<v.length;i++){ h=((h<<5)-h)+v.charCodeAt(i); h|=0;} return 'h'+Math.abs(h); }
 function handleAuth(){
   const email=document.getElementById('fEmail').value.trim().toLowerCase();
   const pass=document.getElementById('fPassword').value;
@@ -102,11 +103,11 @@ function handleAuth(){
     if(!name){err.textContent='Please enter your name.';err.style.display='block';return;}
     if(users.find(u=>u.email===email)){err.textContent='Email already registered.';err.style.display='block';return;}
     if(pass.length<6){err.textContent='Password must be at least 6 characters.';err.style.display='block';return;}
-    const user={id:uid(),email,name,password:btoa(pass),initials:name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()};
+    const user={id:uid(),email,name,password:hashPassword(pass),initials:name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()};
     users.push(user);saveUsers(users);
     loginUser(user);
   } else {
-    const user=users.find(u=>u.email===email&&u.password===btoa(pass));
+    const user=users.find(u=>u.email===email&&u.password===hashPassword(pass));
     if(!user){err.textContent='Invalid email or password.';err.style.display='block';return;}
     loginUser(user);
   }
@@ -157,58 +158,26 @@ S.categories[book.id]={
 }
 
 
-  // Create temporary view-only book
+  
+function continueAsGuest(){
+  S.isGuest=true;
   if(!S.books || !S.books.length){
-
-    const guestBook={
-      id:'guest-book',
-      name:'Demo Book',
-      emoji:'📒',
-      ownerId:'guest',
-      members:[]
-    };
-
+    const guestBook={id:'guest-book',name:'Demo Book',emoji:'📒',ownerId:'guest',members:[]};
     S.books=[guestBook];
     S.currentBookId=guestBook.id;
-
- S.categories[guestBook.id]={
-  expense:[
-    ...DEFAULT_EXPENSE_CATS
-  ],
-  income:[
-    ...DEFAULT_INCOME_CATS
-  ]
-};
-
+    S.categories[guestBook.id]={expense:[...DEFAULT_EXPENSE_CATS],income:[...DEFAULT_INCOME_CATS]};
     S.transactions=[];
   }
-  document
-    .getElementById('authScreen')
-    .classList.remove('active');
-
-  document
-    .getElementById('mainScreen')
-    .classList.add('active');
-
-  document
-    .getElementById('userAvatar')
-    .textContent='👁';
-
-  document
-    .getElementById('headerBookName')
-    .textContent='Guest Mode';
-
-  document
-    .getElementById('headerBookIcon')
-    .textContent='👀';
-
-  renderMonthTabs();
-  showPage('dashboard');
-
+  document.getElementById('authScreen').classList.remove('active');
+  document.getElementById('mainScreen').classList.add('active');
+  document.getElementById('userAvatar').textContent='👁';
+  document.getElementById('headerBookName').textContent='Guest Mode';
+  document.getElementById('headerBookIcon').textContent='👀';
+  renderMonthTabs();showPage('dashboard');
   toast('Guest Mode — View Only');
 }
-  return false;
-}
+function requireLogin(){ if(S.isGuest){ toast('Please login to continue'); return false;} return true; }
+
 function logout(){
 
   S.isGuest=false;
@@ -487,7 +456,7 @@ function inviteByEmail(){
     if(!d.books.find(b=>b.id===book.id)){
       d.books.push(book);
       if(!d.categories)d.categories={};
-      d.categories[book.id]=bookCats(book.id);
+      d.categories[book.id]={expense:bookCats(book.id,'expense'),income:bookCats(book.id,'income')};
     }
     localStorage.setItem(key,JSON.stringify(d));
   }catch{}
@@ -552,10 +521,7 @@ function renderDashboard(){
 
   const balance=totalIncome-totalExpense;
 
-  const cats=bookCats(
-  S.currentBookId,
-  _txnType
-);
+  const cats=bookCats(S.currentBookId);
   const catMap={};
 
   txns
@@ -605,9 +571,7 @@ function renderDashboard(){
     </div>
   </div>`;
 
-  setTimeout(()=>{
-    renderExpenseChart(catMap,totalExpense);
-  },100);
+  requestAnimationFrame(()=>renderExpenseChart(catMap,totalExpense));
 
   return `
     <div class="summary-wrap">
