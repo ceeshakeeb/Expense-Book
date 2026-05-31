@@ -25,13 +25,8 @@ const CAT_EMOJI={
   'Medical':'💊','Education':'📚','Gift':'🎁','Other':'📦'
 };
 
-const DEFAULT_EXPENSE_CATS=[
-  'Entertainment','Fast Food','Grocery','Home Improvement','Travel','Fuel','Dress','Rent / Bills','Medical','Education','Gift','Other'
-];
-
-const DEFAULT_INCOME_CATS=[
-  'Salary Income','Business Income'
-];
+const DEFAULT_EXPENSE_CATS=['Entertainment','Fast Food','Grocery','Home Improvement','Travel','Fuel','Dress','Rent / Bills','Medical','Education','Gift','Other'];
+const DEFAULT_INCOME_CATS=['Salary Income','Business Income'];
 const BOOK_EMOJIS=['📒','📓','📔','📕','📗','📘','📙','💼','🏦','🏪','🏠','✈️'];
 
 function catEmoji(n){return CAT_EMOJI[n]||n.charAt(0).toUpperCase();}
@@ -74,26 +69,24 @@ let S={
   currentPage:'dashboard'
 };
 
-// Listen globally for authentication session states
 onAuthStateChanged(auth, async (firebaseUser) => {
   if (firebaseUser) {
-    // User is logged into Firebase backend -> Load cloud profile data
     const userRef = ref(db, 'users/' + firebaseUser.uid);
     try {
       const snapshot = await get(userRef);
       if (snapshot.exists()) {
         const cloudData = snapshot.val();
         Object.assign(S, cloudData);
+        if(!S.transactions) S.transactions = [];
+        if(!S.categories) S.categories = {};
       } else {
-        // Run fresh schema allocation for brand new profile structures
         setupNewUserSchema(firebaseUser);
       }
       setupUIAfterLogin();
     } catch (e) {
-      toast("Error downloading profile data.");
+      toast("Error downloading data.");
     }
   } else {
-    // Session is logged out completely
     showAuthScreen();
   }
 });
@@ -102,27 +95,16 @@ function setupNewUserSchema(firebaseUser) {
   const generatedBookId = uid();
   const userName = firebaseUser.displayName || firebaseUser.email.split('@')[0];
   
-  S.user = {
-    id: firebaseUser.uid,
-    name: userName,
-    email: firebaseUser.email,
-    initials: userName.slice(0,2).toUpperCase()
-  };
+  S.user = { id: firebaseUser.uid, name: userName, email: firebaseUser.email, initials: userName.slice(0,2).toUpperCase() };
   S.books = [{
-    id: generatedBookId,
-    name: 'My Book',
-    emoji: '📒',
-    ownerId: firebaseUser.uid,
+    id: generatedBookId, name: 'My Book', emoji: '📒', ownerId: firebaseUser.uid,
     members: [{ userId: firebaseUser.uid, email: firebaseUser.email, name: userName, role: 'owner' }]
   }];
   S.currentBookId = generatedBookId;
   S.categories = {};
-  S.categories[generatedBookId] = {
-    expense: [...DEFAULT_EXPENSE_CATS],
-    income: [...DEFAULT_INCOME_CATS]
-  };
+  S.categories[generatedBookId] = { expense: [...DEFAULT_EXPENSE_CATS], income: [...DEFAULT_INCOME_CATS] };
   S.transactions = [];
-  save(); // Push initial state schema directly to cloud reference
+  save();
 }
 
 function setupUIAfterLogin() {
@@ -141,22 +123,13 @@ function showAuthScreen() {
   document.getElementById('authScreen').classList.add('active');
 }
 
-// ═══════════════════════════════════════════════
-//  PERSISTENCE CORRECTION (Saves Directly to Cloud)
-// ═══════════════════════════════════════════════
 function save() {
   if (!S.user || S.isGuest) return;
-  // Write the updated state variable directly to the Firebase Realtime Path
-  set(ref(db, 'users/' + S.user.id), S)
-    .catch((error) => console.error("Cloud synchronization failed: ", error));
-}
-
-function saveUserData() {
-  save(); // Point local references to structural unified save execution
+  set(ref(db, 'users/' + S.user.id), S).catch((e) => console.error("Cloud save failed: ", e));
 }
 
 // ═══════════════════════════════════════════════
-//  AUTHENTICATION CONTROLLERS (Firebase Integrated)
+//  AUTHENTICATION
 // ═══════════════════════════════════════════════
 let authMode='login';
 function switchAuthTab(m){
@@ -175,176 +148,258 @@ function handleAuth() {
   const err = document.getElementById('authErr');
   err.style.display = 'none';
 
-  if (!email || !pass) {
-    err.textContent = 'Please fill in all fields.';
-    err.style.display = 'block';
-    return;
-  }
+  if (!email || !pass) { err.textContent = 'Please fill all fields.'; err.style.display = 'block'; return; }
 
   if (authMode === 'register') {
     if (!name) { err.textContent = 'Please enter your name.'; err.style.display = 'block'; return; }
-    if (pass.length < 6) { err.textContent = 'Password must be at least 6 characters.'; err.style.display = 'block'; return; }
-    
     createUserWithEmailAndPassword(auth, email, pass)
       .then((userCredential) => {
-        // Store name field locally context temporarily before structural sync pipeline takes over
         userCredential.user.displayName = name; 
         setupNewUserSchema(userCredential.user);
       })
-      .catch((error) => {
-        err.textContent = error.message;
-        err.style.display = 'block';
-      });
+      .catch((e) => { err.textContent = e.message; err.style.display = 'block'; });
   } else {
-    signInWithEmailAndPassword(auth, email, pass)
-      .catch((error) => {
-        err.textContent = 'Invalid email or password security credentials.';
-        err.style.display = 'block';
-      });
+    signInWithEmailAndPassword(auth, email, pass).catch((e) => { err.textContent = 'Invalid credentials.'; err.style.display = 'block'; });
   }
 }
 
-function handleGoogleAuth() {
-  toast("Please use Standard Sign In/Registration details for secure storage.");
-}
-
+function handleGoogleAuth() { toast("Please use email registration."); }
 function continueAsGuest(){
   S.isGuest=true;
-  if(!S.books || !S.books.length){
-    const guestBook={id:'guest-book',name:'Demo Book',emoji:'📒',ownerId:'guest',members:[]};
-    S.books=[guestBook];
-    S.currentBookId=guestBook.id;
-    S.categories[guestBook.id]={expense:[...DEFAULT_EXPENSE_CATS],income:[...DEFAULT_INCOME_CATS]};
-    S.transactions=[];
+  const guestBook={id:'guest-book',name:'Demo Book',emoji:'📒',ownerId:'guest',members:[]};
+  S.books=[guestBook]; S.currentBookId=guestBook.id;
+  S.categories[guestBook.id]={expense:[...DEFAULT_EXPENSE_CATS],income:[...DEFAULT_INCOME_CATS]};
+  S.transactions=[];
+  setupUIAfterLogin();
+}
+function logout(){ S.isGuest=false; signOut(auth).then(() => { S = { user:null, isGuest:false, books:[], currentBookId:null, transactions:[], categories:{}, currentMonth:today().slice(0,7), currentPage:'dashboard' }; }); }
+function guestBlocked(){ if(S.isGuest){ toast('Please login to continue'); return true; } return false; }
+function toast(msg) { const t = document.getElementById('toast'); if(t) { t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); } }
+
+// ═══════════════════════════════════════════════
+//  TRANSACTIONS SYSTEM CODE (The "+" Button)
+// ═══════════════════════════════════════════════
+function openTxnSheet(txnId = null) {
+  const sheetBg = document.getElementById('sheetBg');
+  const inner = document.getElementById('sheetInner');
+  if (!sheetBg || !inner) return;
+
+  const cats = bookCats(S.currentBookId);
+  const existing = txnId ? S.transactions.find(t => t.id === txnId) : null;
+
+  inner.innerHTML = `
+    <div class="sheet-title">${existing ? 'Edit Entry' : 'Add New Entry'} <button class="close-btn" onclick="window.closeSheetNow()">×</button></div>
+    <div class="form-group">
+      <label class="form-label">Type</label>
+      <select class="form-input" id="txnType" onchange="window.updateTxnCatDropdown()">
+        <option value="expense" ${existing?.type === 'expense' ? 'selected' : ''}>Expense (-)</option>
+        <option value="income" ${existing?.type === 'income' ? 'selected' : ''}>Income (+)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Amount (₹)</label>
+      <input class="form-input" id="txnAmount" type="number" placeholder="0.00" value="${existing ? existing.amount : ''}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Category</label>
+      <select class="form-input" id="txnCategory"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date</label>
+      <input class="form-input" id="txnDate" type="date" value="${existing ? existing.date : today()}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Remark / Note</label>
+      <input class="form-input" id="txnRemark" type="text" placeholder="What was this for?" value="${existing ? (existing.remark || '') : ''}" />
+    </div>
+    <button class="btn btn-primary" onclick="window.saveTransaction('${txnId || ''}')">${existing ? 'Save Changes' : 'Save Entry'}</button>
+    ${existing ? `<button class="btn btn-danger" style="margin-top:8px" onclick="window.deleteTransaction('${txnId}')">Delete Entry</button>` : ''}
+  `;
+
+  sheetBg.classList.add('open');
+  updateTxnCatDropdown(existing ? existing.category : null);
+}
+
+function updateTxnCatDropdown(selectedCat = null) {
+  const type = document.getElementById('txnType').value;
+  const catSelect = document.getElementById('txnCategory');
+  if (!catSelect) return;
+  const cats = bookCats(S.currentBookId, type);
+  catSelect.innerHTML = cats.map(c => `<option value="${c}" ${c === selectedCat ? 'selected' : ''}>${catEmoji(c)} ${c}</option>`).join('');
+}
+
+function saveTransaction(txnId = '') {
+  if (guestBlocked()) return;
+  const type = document.getElementById('txnType').value;
+  const amount = parseFloat(document.getElementById('txnAmount').value);
+  const category = document.getElementById('txnCategory').value;
+  const date = document.getElementById('txnDate').value;
+  const remark = document.getElementById('txnRemark').value.trim();
+
+  if (isNaN(amount) || amount <= 0) { toast("Please enter a valid amount"); return; }
+  if (!category) { toast("Please pick a category"); return; }
+
+  if (txnId) {
+    const idx = S.transactions.findIndex(t => t.id === txnId);
+    if (idx >= 0) S.transactions[idx] = { id: txnId, bookId: S.currentBookId, type, amount, category, date, remark };
+  } else {
+    S.transactions.push({ id: uid(), bookId: S.currentBookId, type, amount, category, date, remark });
   }
-  document.getElementById('authScreen').classList.remove('active');
-  document.getElementById('mainScreen').classList.add('active');
-  document.getElementById('userAvatar').textContent='👁';
-  document.getElementById('headerBookName').textContent='Guest Mode';
-  document.getElementById('headerBookIcon').textContent='👀';
-  renderMonthTabs();showPage('dashboard');
-  toast('Guest Mode — View Only');
+
+  save();
+  window.closeSheetNow();
+  renderPage();
+  toast(txnId ? "Entry updated ✓" : "Entry logged ✓");
 }
 
-function logout(){
-  S.isGuest=false;
-  signOut(auth).then(() => {
-    S = { user:null, isGuest:false, books:[], currentBookId:null, transactions:[], categories:{}, currentMonth:today().slice(0,7), currentPage:'dashboard' };
-    closeSheetNow();
-  });
-}
-
-function guestBlocked(){
-  if(S.isGuest){ toast('Please login to continue'); return true; }
-  return false;
+function deleteTransaction(txnId) {
+  if (guestBlocked()) return;
+  S.transactions = S.transactions.filter(t => t.id !== txnId);
+  save();
+  window.closeSheetNow();
+  renderPage();
+  toast("Entry deleted");
 }
 
 // ═══════════════════════════════════════════════
-//  BOOKS SYSTEM MANAGEMENT
+//  CATEGORIES ENGINE (3 Dots Menu Fixes)
+// ═══════════════════════════════════════════════
+function toggleCatMenu(e, c, type) {
+  e.stopPropagation();
+  closeAllCatMenus();
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+
+  const menu = document.createElement('div');
+  menu.className = 'cat-popup-menu';
+  menu.id = 'activeCatMenu';
+  menu.style.position = 'fixed';
+  menu.style.background = 'white';
+  menu.style.border = '1px solid #ccc';
+  menu.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+  menu.style.zIndex = '10000';
+  menu.style.padding = '4px 0';
+  menu.style.borderRadius = '8px';
+
+  const renameBtn = document.createElement('button');
+  renameBtn.className = 'cat-popup-item';
+  renameBtn.style.display = 'block';
+  renameBtn.style.width = '100%';
+  renameBtn.style.padding = '8px 16px';
+  renameBtn.style.background = 'none';
+  renameBtn.style.border = 'none';
+  renameBtn.style.textAlign = 'left';
+  renameBtn.innerHTML = '✏️ Rename Category';
+  renameBtn.onclick = (ev) => { ev.stopPropagation(); renameCategory(c, type); };
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'cat-popup-item delete';
+  deleteBtn.style.display = 'block';
+  deleteBtn.style.width = '100%';
+  deleteBtn.style.padding = '8px 16px';
+  deleteBtn.style.background = 'none';
+  deleteBtn.style.border = 'none';
+  deleteBtn.style.textAlign = 'left';
+  deleteBtn.style.color = 'red';
+  deleteBtn.innerHTML = '🗑 Delete Category';
+  deleteBtn.onclick = (ev) => { ev.stopPropagation(); confirmDeleteCategory(c, type); };
+
+  menu.appendChild(renameBtn);
+  menu.appendChild(deleteBtn);
+  document.body.appendChild(menu);
+
+  menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 180) + 'px';
+
+  setTimeout(() => document.addEventListener('click', closeAllCatMenus, { once: true }), 50);
+}
+
+function closeAllCatMenus() { const old = document.getElementById('activeCatMenu'); if (old) old.remove(); }
+
+function renameCategory(c, type) {
+  closeAllCatMenus();
+  const newName = prompt('Rename category', c);
+  if (!newName || !newName.trim() || newName.trim() === c) return;
+  const clean = newName.trim();
+
+  const cats = S.categories[S.currentBookId][type];
+  if (cats.includes(clean)) { toast('Category already exists'); return; }
+  
+  const index = cats.indexOf(c);
+  if (index !== -1) cats[index] = clean;
+
+  S.transactions.forEach(t => { if (t.bookId === S.currentBookId && t.category === c) t.category = clean; });
+  save(); renderPage(); toast('Category renamed ✓');
+}
+
+function confirmDeleteCategory(c, type) {
+  closeAllCatMenus();
+  if (guestBlocked()) return;
+  if (!confirm(`Are you sure you want to delete "${c}"?`)) return;
+
+  S.categories[S.currentBookId][type] = S.categories[S.currentBookId][type].filter(item => item !== c);
+  S.transactions = S.transactions.filter(t => !(t.bookId === S.currentBookId && t.category === c));
+  
+  save(); renderPage(); toast(c + ' deleted ✓');
+}
+
+// ═══════════════════════════════════════════════
+//  BOOKS & PERSISTENCE
 // ═══════════════════════════════════════════════
 function currentBook(){return S.books.find(b=>b.id===S.currentBookId)||S.books[0];}
 function bookTxns(bookId,month){return (S.transactions||[]).filter(t=>t.bookId===bookId&&t.date.startsWith(month));}
 function bookCats(bookId,type){
-  if(!S.categories){ S.categories={}; }
-  if(!S.categories[bookId]){
-    S.categories[bookId]={ expense:[...DEFAULT_EXPENSE_CATS], income:[...DEFAULT_INCOME_CATS] };
-  }
-  if(type){ return (S.categories[bookId][type] || []); }
-  return [...S.categories[bookId].expense, ...S.categories[bookId].income];
+  if(!S.categories[bookId]){ S.categories[bookId]={ expense:[...DEFAULT_EXPENSE_CATS], income:[...DEFAULT_INCOME_CATS] }; }
+  if(type) return S.categories[bookId][type] || [];
+  return [...(S.categories[bookId].expense || []), ...(S.categories[bookId].income || [])];
 }
 
-function openBooksSheet(){
-  document.getElementById('sheetBg').classList.add('open');
-  renderBooksSheet();
-}
-
-function renderBooksSheet(){
-  const items=S.books.map(b=>{
-    const isOwner=b.ownerId===S.user.id;
-    const isShared=b.members.length>1;
-    const isCurrent=b.id===S.currentBookId;
-    return `<div class="book-item ${isCurrent?'current':''}" onclick="selectBook('${b.id}')">
-      <div class="book-item-icon" style="background:${isCurrent?'#185FA520':'var(--surface)'};border:1.5px solid var(--border)">${b.emoji}</div>
-      <div class="book-item-body">
-        <div class="book-item-name">${b.name}</div>
-        <div class="book-item-meta">${b.members.length} member${b.members.length>1?'s':''} · ${isOwner?'Owner':'Member'}</div>
-      </div>
-      ${isShared?`<span class="book-badge shared-badge">Shared</span>`:''}
-      ${isCurrent?`<span class="book-badge">Active</span>`:''}
-    </div>`;
-  }).join('');
-
-  document.getElementById('sheetInner').innerHTML=`
-    <div class="sheet-title">Your Books
-      <button class="close-btn" onclick="closeSheetNow()">×</button>
-    </div>
-    ${items}
-    <div class="divider"></div>
-    <button class="btn btn-primary" onclick="openAddBookSheet()" style="margin-bottom:8px">+ New Book</button>
-  `;
-}
-
-function selectBook(id){
-  S.currentBookId=id;
-  const b=currentBook();
-  document.getElementById('headerBookName').textContent=b.name;
-  document.getElementById('headerBookIcon').textContent=b.emoji;
-  save();
-  closeSheetNow();
-  renderMonthTabs();showPage('dashboard');
-}
-
+function openBooksSheet(){ document.getElementById('sheetBg').classList.add('open'); renderBooksSheet(); }
+function selectBook(id){ S.currentBookId=id; const b=currentBook(); document.getElementById('headerBookName').textContent=b.name; document.getElementById('headerBookIcon').textContent=b.emoji; save(); window.closeSheetNow(); renderMonthTabs(); showPage('dashboard'); }
 function openAddBookSheet(){
-  document.getElementById('sheetInner').innerHTML=`
-    <div class="sheet-title">New Book
-      <button class="close-btn" onclick="openBooksSheet()">×</button>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Book Name</label>
-      <input class="form-input" id="newBookName" placeholder="e.g. Business, Family, Travel..." />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Icon</label>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px" id="emojiPicker">
-        ${BOOK_EMOJIS.map((e,i)=>`<div class="cat-chip ${i===0?'selected':''}" style="font-size:20px;padding:8px;justify-content:center" onclick="pickEmoji(this,'${e}')">${e}</div>`).join('')}
-      </div>
-    </div>
-    <button class="btn btn-primary" onclick="createBook()" style="margin-top:8px">Create Book</button>
+  document.getElementById('sheetInner').innerHTML = `
+    <div class="sheet-title">New Book <button class="close-btn" onclick="window.openBooksSheet()">×</button></div>
+    <div class="form-group"><label class="form-label">Book Name</label><input class="form-input" id="newBookName" placeholder="e.g. Business, Personal..." /></div>
+    <button class="btn btn-primary" onclick="window.createBook()">Create Book</button>
   `;
-  window._newBookEmoji=BOOK_EMOJIS[0];
 }
-
-function pickEmoji(el,e){
-  document.querySelectorAll('#emojiPicker .cat-chip').forEach(c=>c.classList.remove('selected'));
-  el.classList.add('selected');window._newBookEmoji=e;
-}
-
 function createBook(){
   if(guestBlocked()) return;
   const name=document.getElementById('newBookName').value.trim();
   if(!name){toast('Enter a book name');return;}
-  const book={id:uid(),name,emoji:window._newBookEmoji||'📒',ownerId:S.user.id,members:[{userId:S.user.id,email:S.user.email,name:S.user.name,role:'owner'}]};
+  const book={id:uid(),name,emoji:'📒',ownerId:S.user.id,members:[{userId:S.user.id,email:S.user.email,name:S.user.name,role:'owner'}]};
   S.books.push(book);
   S.categories[book.id]={ expense:[...DEFAULT_EXPENSE_CATS], income:[...DEFAULT_INCOME_CATS] };
   S.currentBookId=book.id;
   document.getElementById('headerBookName').textContent=book.name;
   document.getElementById('headerBookIcon').textContent=book.emoji;
-  save();closeSheetNow();
-  renderMonthTabs();showPage('dashboard');
-  toast('Book "'+name+'" created ✓');
+  save(); window.closeSheetNow(); renderMonthTabs(); showPage('dashboard'); toast('Book created ✓');
+}
+
+function renderBooksSheet(){
+  const items=S.books.map(b=>{
+    const isCurrent=b.id===S.currentBookId;
+    return `<div class="book-item ${isCurrent?'current':''}" onclick="window.selectBook('${b.id}')">
+      <div class="book-item-icon">${b.emoji}</div>
+      <div class="book-item-body"><div class="book-item-name">${b.name}</div></div>
+      ${isCurrent?`<span class="book-badge">Active</span>`:''}
+    </div>`;
+  }).join('');
+  document.getElementById('sheetInner').innerHTML=`<div class="sheet-title">Your Books<button class="close-btn" onclick="window.closeSheetNow()">×</button></div>${items}<div class="divider"></div><button class="btn btn-primary" onclick="window.openAddBookSheet()">+ New Book</button>`;
 }
 
 // ═══════════════════════════════════════════════
-//  NAVIGATION RENDERING
+//  UI RENDERING ROUTERS
 // ═══════════════════════════════════════════════
 function showPage(page){
   S.currentPage=page;
-  ['dashboard','transactions','categories','profile'].forEach(p=>{
-    document.getElementById('nav'+p.charAt(0).toUpperCase()+p.slice(1)).classList.toggle('active',p===page);
+  ['navDashboard','navTransactions','navCategories','navProfile'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('active', id.toLowerCase().includes(page));
   });
   const fab = document.getElementById('fabBtn');
-  if(fab) fab.style.display=page==='categories'||page==='profile'?'none':'flex';
-  renderMonthTabs();renderPage();
+  if(fab) fab.style.display=(page==='categories'||page==='profile')?'none':'flex';
+  renderMonthTabs(); renderPage();
 }
 
 function renderMonthTabs(){
@@ -354,7 +409,7 @@ function renderMonthTabs(){
   const allMonths=new Set([S.currentMonth]);
   (S.transactions||[]).filter(t=>t.bookId===S.currentBookId).forEach(t=>allMonths.add(monthKey(t.date)));
   const sorted=[...allMonths].sort().reverse().slice(0,12);
-  el.innerHTML=sorted.map(m=>`<div class="month-chip ${m===S.currentMonth?'active':''}" onclick="selectMonth('${m}')">${monthLabel(m)}</div>`).join('');
+  el.innerHTML=sorted.map(m=>`<div class="month-chip ${m===S.currentMonth?'active':''}" onclick="window.selectMonth('${m}')">${monthLabel(m)}</div>`).join('');
 }
 
 function selectMonth(m){S.currentMonth=m;renderMonthTabs();renderPage();}
@@ -368,136 +423,9 @@ function renderPage(){
   else el.innerHTML=renderProfilePage();
 }
 
-function renderDashboard(){
-  const txns=bookTxns(S.currentBookId,S.currentMonth);
-  const totalIncome=txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const totalExpense=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const balance=totalIncome-totalExpense;
-  const cats=bookCats(S.currentBookId);
-  const catMap={};
-
-  txns.filter(t=>t.type==='expense').forEach(t=>{ catMap[t.category]=(catMap[t.category]||0)+t.amount; });
-  const sorted=Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
-  const recent=[...txns].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
-
-  const recentRows=recent.length ? recent.map(t=>{
-      const idx=cats.indexOf(t.category);
-      const col=CAT_COLORS[idx>=0?idx%CAT_COLORS.length:0];
-      return `
-      <div class="txn-item" onclick="openTxnSheet('${t.id}')">
-        <div class="txn-icon" style="background:${col}22">${catEmoji(t.category)}</div>
-        <div class="txn-body">
-          <div class="txn-cat">${t.category}</div>
-          <div class="txn-meta">${t.remark||t.date}</div>
-        </div>
-        <div class="txn-right">
-          <div class="txn-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
-          <div class="txn-date">${t.date}</div>
-        </div>
-      </div>`;
-    }).join('') : `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No transactions yet<br><small>Tap + to add your first entry</small></div></div>`;
-
-  requestAnimationFrame(()=>renderExpenseChart(catMap,totalExpense));
-
-  return `
-    <div class="summary-wrap">
-      <div class="s-card"><div class="s-label">Income</div><div class="s-val income">${fmt(totalIncome)}</div></div>
-      <div class="s-card"><div class="s-label">Expense</div><div class="s-val expense">${fmt(totalExpense)}</div></div>
-      <div class="s-card balance-card"><div class="s-label">Balance — ${monthLabel(S.currentMonth)}</div><div class="s-val ${balance>=0?'':'negative'}">${fmtSgn(balance)}</div></div>
-    </div>
-    ${sorted.length ? `<div class="section"><div class="section-hdr"><div class="section-title">Expense Breakdown</div></div><div style="position:relative;height:280px;display:flex;justify-content:center;align-items:center;"><canvas id="expenseChart"></canvas><div id="chartCenterText" style="position:absolute;text-align:center;pointer-events:none;"><div style="font-size:12px;color:var(--text2)">Total Expense</div><div style="font-size:20px;font-weight:700">${fmt(totalExpense)}</div></div></div></div>`:''}
-    <div class="section"><div class="section-hdr"><div class="section-title">Recent entries</div><span class="see-all" onclick="showPage('transactions')">See all</span></div>${recentRows}</div>
-  `;
-}
-
-let expenseChart=null;
-function renderExpenseChart(catMap,totalExpense){
-  const canvas=document.getElementById('expenseChart');
-  if(!canvas) return;
-  if(expenseChart){ expenseChart.destroy(); }
-  const labels=Object.keys(catMap);
-  const data=Object.values(catMap);
-
-  expenseChart=new Chart(canvas,{
-    type:'doughnut',
-    data:{ labels, datasets:[{ data, backgroundColor:CAT_COLORS, borderWidth:0 }] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'72%', plugins:{ legend:{ position:'bottom' } } }
-  });
-}
-
-function renderTransactions(){
-  const txns=bookTxns(S.currentBookId,S.currentMonth).sort((a,b)=>b.date.localeCompare(a.date));
-  const cats=bookCats(S.currentBookId);
-  if(!txns.length)return`<div class="empty-state" style="margin-top:40px"><div class="empty-icon">📭</div><div class="empty-text">No entries for ${monthLabel(S.currentMonth)}</div></div>`;
-  const rows=txns.map(t=>{
-    const idx=cats.indexOf(t.category);
-    const col=CAT_COLORS[idx>=0?idx%CAT_COLORS.length:0];
-    return`<div class="txn-item" onclick="openTxnSheet('${t.id}')">
-      <div class="txn-icon" style="background:${col}22">${catEmoji(t.category)}</div>
-      <div class="txn-body">
-        <div class="txn-cat">${t.category} <span class="badge badge-${t.type}">${t.type}</span></div>
-        <div class="txn-meta">${t.remark?'💬 '+t.remark:t.date}</div>
-      </div>
-      <div class="txn-right">
-        <div class="txn-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
-        <div class="txn-date">${t.date}</div>
-      </div>
-    </div>`;
-  }).join('');
-  return`<div class="section">${rows}</div>`;
-}
-
-function renderCategoriesPage(){
-  const expenseCats=bookCats(S.currentBookId,'expense');
-  const incomeCats=bookCats(S.currentBookId,'income');
-
-  const expenseRows=expenseCats.map((c,i)=>`<div class="manage-cat-item"><div class="cat-dot" style="background:${CAT_COLORS[i%CAT_COLORS.length]};width:10px;height:10px"></div><span class="cat-name">${catEmoji(c)} ${c}</span><div class="cat-menu-wrap"><button class="cat-menu-btn" onclick="toggleCatMenu(event,'${c}','expense')">⋮</button></div></div>`).join('');
-  const incomeRows=incomeCats.map((c,i)=>`<div class="manage-cat-item"><div class="cat-dot" style="background:${CAT_COLORS[i%CAT_COLORS.length]};width:10px;height:10px"></div><span class="cat-name">${catEmoji(c)} ${c}</span><div class="cat-menu-wrap"><button class="cat-menu-btn" onclick="toggleCatMenu(event,'${c}','income')">⋮</button></div></div>`).join('');
-
-  return `
-  <div class="section">
-    <div class="section-title">Expense Categories</div>${expenseRows}
-    <div class="add-row" style="margin-top:12px"><input class="form-input" id="newExpenseCat" placeholder="Add expense category" /><button class="btn-sq" onclick="addCat('expense')">+</button></div>
-    <hr style="margin:22px 0"><div class="section-title">Income Categories</div>${incomeRows}
-    <div class="add-row" style="margin-top:12px"><input class="form-input" id="newIncomeCat" placeholder="Add income category" /><button class="btn-sq" onclick="addCat('income')">+</button></div>
-  </div>`;
-}
-
-function addCat(type){
-  if(guestBlocked()) return;
-  const inp=document.getElementById(type==='income'?'newIncomeCat':'newExpenseCat');
-  const n=inp.value.trim();
-  if(!n){toast('Enter category name');return;}
-  const id=S.currentBookId;
-  if(!S.categories[id]){ S.categories[id]={ expense:[...DEFAULT_EXPENSE_CATS], income:[...DEFAULT_INCOME_CATS] };}
-  if(S.categories[id][type].includes(n)){toast('Category already exists');return;}
-  S.categories[id][type].push(n);
-  inp.value='';
-  save(); renderPage();
-  toast(n+' added ✓');
-}
-
-function renderProfilePage(){
-  const u=S.user;
-  const book=currentBook();
-  const totalTxns=(S.transactions||[]).filter(t=>t.bookId===S.currentBookId).length;
-  return`<div class="profile-section">
-    <div class="profile-card">
-      <div class="profile-head"><div class="profile-avatar">${u.initials||'U'}</div><div><div class="profile-name">${u.name}</div><div class="profile-email">${u.email}</div></div></div>
-      <div class="info-row"><span class="label">Active Book</span><span class="value">${book.emoji} ${book.name}</span></div>
-      <div class="info-row"><span class="label">Total books</span><span class="value">${S.books.length}</span></div>
-      <div class="info-row"><span class="label">Entries (this book)</span><span class="value">${totalTxns}</span></div>
-      <div class="info-row"><span class="label">Backup</span><span class="value"><span class="sync-status"><span class="sync-dot" style="background:#1d9e75"></span>Cloud Backed Up</span></span></div>
-    </div>
-    <div class="profile-card">
-      <div class="section-title" style="margin-bottom:12px">Book Options</div>
-      <button class="btn btn-outline" style="margin-bottom:8px" onclick="openBooksSheet()">📚 Switch / Manage Books</button>
-    </div>
-    <div class="profile-card"><button class="btn btn-danger" onclick="logout()">Sign Out</button></div>
-  </div>`;
-}
-
-// Global exposure definitions for programmatic inline HTML event hooks
+// ═══════════════════════════════════════════════
+//  GLOBAL EXPOSURE (Bridges Javascript Modules to HTML layout)
+// ═══════════════════════════════════════════════
 window.handleAuth = handleAuth;
 window.handleGoogleAuth = handleGoogleAuth;
 window.switchAuthTab = switchAuthTab;
@@ -507,7 +435,11 @@ window.selectBook = selectBook;
 window.createBook = createBook;
 window.openAddBookSheet = openAddBookSheet;
 window.openBooksSheet = openBooksSheet;
-window.pickEmoji = pickEmoji;
 window.showPage = showPage;
 window.selectMonth = selectMonth;
 window.addCat = addCat;
+window.openTxnSheet = openTxnSheet;
+window.updateTxnCatDropdown = updateTxnCatDropdown;
+window.saveTransaction = saveTransaction;
+window.deleteTransaction = deleteTransaction;
+window.toggleCatMenu = toggleCatMenu;
