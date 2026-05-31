@@ -19,19 +19,26 @@ import {
 // ═══════════════════════════════════════════════
 //  CONSTANTS & DEFAULTS
 // ═══════════════════════════════════════════════
-const CAT_COLORS=['#185FA5','#1D9E75','#D85A30','#BA7517','#534AB7','#3B6D11','#993C1D','#D4537E','#0F6E56','#963C00','#2a7a8a','#7b3fa0'];
+const CAT_COLORS={
+  'Entertainment':'#185FA5','Fast Food':'#1D9E75','Grocery':'#D85A30','Home Improvement':'#BA7517',
+  'Travel':'#534AB7','Fuel':'#3B6D11','Dress':'#993C1D','Rent / Bills':'#D4537E',
+  'Salary':'#0F6E56','Freelance':'#963C00','Business':'#2a7a8a','Investment':'#7b3fa0',
+  'Salary Income':'#1D9E75','Business Income':'#2a7a8a','Medical':'#💊','Education':'#📚','Gift':'#🎁','Other':'#95a5a6'
+};
+
 const CAT_EMOJI={
   'Entertainment':'🎬','Fast Food':'🍔','Grocery':'🛒','Home Improvement':'🏠',
   'Travel':'✈️','Fuel':'⛽','Dress':'👗','Rent / Bills':'🏢',
   'Salary':'💼','Freelance':'💻','Business':'📊','Investment':'📈',
-  'Medical':'💊','Education':'📚','Gift':'🎁','Other':'📦'
+  'Medical':'💊','Education':'📚','Gift':'🎁','Other':'📦',
+  'Salary Income':'💼','Business Income':'📊'
 };
 
 const DEFAULT_EXPENSE_CATS=['Entertainment','Fast Food','Grocery','Home Improvement','Travel','Fuel','Dress','Rent / Bills','Medical','Education','Gift','Other'];
 const DEFAULT_INCOME_CATS=['Salary Income','Business Income'];
-const BOOK_EMOJIS=['📒','📓','📔','📕','📗','📘','📙','💼','🏦','🏪','🏠','✈️'];
 
-function catEmoji(n){return CAT_EMOJI[n]||n.charAt(0).toUpperCase();}
+function catEmoji(n){return CAT_EMOJI[n]||'📦';}
+function catColor(n){return CAT_COLORS[n]||'#7f8c8d';}
 function fmt(n){return '₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});}
 function fmtSgn(n){return (n>=0?'+':'-')+'₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
@@ -72,7 +79,6 @@ let S={
   currentPage:'dashboard'
 };
 
-// Global authentication status observer
 onAuthStateChanged(auth, async (firebaseUser) => {
   if (firebaseUser) {
     const userRef = ref(db, 'users/' + firebaseUser.uid);
@@ -139,7 +145,7 @@ function save() {
 }
 
 // ═══════════════════════════════════════════════
-//  AUTHENTICATION ENGINE ENGINE (FIXED)
+//  AUTHENTICATION ENGINE
 // ═══════════════════════════════════════════════
 let authMode='login';
 
@@ -164,49 +170,28 @@ function handleAuth() {
   const pass = passEl ? passEl.value : '';
   const name = nameEl ? nameEl.value.trim() : '';
 
-  if (!email || !pass) {
-    showError('Please complete all form fields.');
-    return;
-  }
+  if (!email || !pass) { showError('Please complete all form fields.'); return; }
 
   if (authMode === 'register') {
     if (!name) { showError('Please provide your full name.'); return; }
-    
     createUserWithEmailAndPassword(auth, email, pass)
       .then((userCredential) => {
-        // Force display name update into the account schema record
         userCredential.user.displayName = name;
         setupNewUserSchema(userCredential.user);
       })
       .catch((e) => { showError(e.message); });
   } else {
-    signInWithEmailAndPassword(auth, email, pass)
-      .catch((e) => { showError('Invalid profile email or password mismatch.'); });
+    signInWithEmailAndPassword(auth, email, pass).catch((e) => { showError('Invalid email or password mismatch.'); });
   }
 }
 
 function handleGoogleAuth() {
-  const err = document.getElementById('authErr');
-  if (err) err.style.display = 'none';
-
-  signInWithPopup(auth, googleProvider)
-    .then((result) => {
-      // Identity processed correctly. State observer handles layout assignment.
-    })
-    .catch((error) => {
-      console.error("Google authentication error:", error);
-      showError(error.message || "Google authentication process stopped.");
-    });
+  signInWithPopup(auth, googleProvider).catch((error) => { showError(error.message || "Google Authentication canceled."); });
 }
 
 function showError(msg) {
   const err = document.getElementById('authErr');
-  if (err) {
-    err.textContent = msg;
-    err.style.display = 'block';
-  } else {
-    alert(msg);
-  }
+  if (err) { err.textContent = msg; err.style.display = 'block'; } else { alert(msg); }
 }
 
 function continueAsGuest(){
@@ -299,7 +284,8 @@ function saveTransaction(txnId = '') {
   }
 
   save();
-  window.closeSheetNow();
+  if (window.closeSheetNow) window.closeSheetNow();
+  else document.getElementById('sheetBg').classList.remove('open');
   renderPage();
   toast(txnId ? "Entry updated ✓" : "Entry logged ✓");
 }
@@ -308,7 +294,8 @@ function deleteTransaction(txnId) {
   if (guestBlocked()) return;
   S.transactions = S.transactions.filter(t => t.id !== txnId);
   save();
-  window.closeSheetNow();
+  if (window.closeSheetNow) window.closeSheetNow();
+  else document.getElementById('sheetBg').classList.remove('open');
   renderPage();
   toast("Entry deleted");
 }
@@ -426,7 +413,7 @@ function bookCats(bookId,type){
 }
 
 function openBooksSheet(){ document.getElementById('sheetBg').classList.add('open'); renderBooksSheet(); }
-function selectBook(id){ S.currentBookId=id; const b=currentBook(); document.getElementById('headerBookName').textContent=b.name; document.getElementById('headerBookIcon').textContent=b.emoji; save(); window.closeSheetNow(); renderMonthTabs(); showPage('dashboard'); }
+function selectBook(id){ S.currentBookId=id; const b=currentBook(); document.getElementById('headerBookName').textContent=b.name; document.getElementById('headerBookIcon').textContent=b.emoji; save(); if(window.closeSheetNow) window.closeSheetNow(); else document.getElementById('sheetBg').classList.remove('open'); renderMonthTabs(); showPage('dashboard'); }
 function openAddBookSheet() {
   document.getElementById('sheetInner').innerHTML = `
     <div class="sheet-title">New Book <button class="close-btn" onclick="window.openBooksSheet()">×</button></div>
@@ -444,7 +431,7 @@ function createBook(){
   S.currentBookId=book.id;
   document.getElementById('headerBookName').textContent=book.name;
   document.getElementById('headerBookIcon').textContent=book.emoji;
-  save(); window.closeSheetNow(); renderMonthTabs(); showPage('dashboard'); toast('Book created ✓');
+  save(); if(window.closeSheetNow) window.closeSheetNow(); else document.getElementById('sheetBg').classList.remove('open'); renderMonthTabs(); showPage('dashboard'); toast('Book created ✓');
 }
 
 function renderBooksSheet(){
@@ -460,7 +447,7 @@ function renderBooksSheet(){
 }
 
 // ═══════════════════════════════════════════════
-//  UI PAGES GENERATOR
+//  UI PAGES GENERATOR (WITH PIE CHART & CAT CARDS)
 // ═══════════════════════════════════════════════
 function showPage(page){
   S.currentPage=page;
@@ -497,23 +484,85 @@ function renderPage(){
 function renderDashboard() {
   const txns = bookTxns(S.currentBookId, S.currentMonth);
   let inc = 0, exp = 0;
-  txns.forEach(t => { if(t.type==='income') inc+=t.amount; else exp+=t.amount; });
+  
+  // Calculate Category-wise summaries
+  const catSums = {};
+  txns.forEach(t => { 
+    if(t.type==='income') {
+      inc+=t.amount; 
+    } else {
+      exp+=t.amount;
+      catSums[t.category] = (catSums[t.category] || 0) + t.amount;
+    }
+  });
   const bal = inc - exp;
+
+  // Generate CSS Conic Gradient string for Pie Chart slices
+  let chartGradientString = '#f2f2f2 0 100%';
+  let accumulatedPercent = 0;
+  const sortedCats = Object.entries(catSums).sort((a,b) => b[1] - a[1]);
+
+  if (exp > 0 && sortedCats.length > 0) {
+    const pieces = sortedCats.map(([cat, val]) => {
+      const start = accumulatedPercent;
+      const percent = (val / exp) * 100;
+      accumulatedPercent += percent;
+      return `${catColor(cat)} ${start.toFixed(1)}% ${accumulatedPercent.toFixed(1)}%`;
+    });
+    chartGradientString = pieces.join(', ');
+  }
+
+  // Generate Category-Wise Breakdown Elements
+  const categoryCardsHTML = sortedCats.map(([cat, val]) => {
+    const pct = exp > 0 ? ((val / exp) * 100).toFixed(0) : 0;
+    return `
+      <div style="display:flex; align-items:center; background:white; padding:12px; margin-bottom:8px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div style="font-size:20px; width:36px; height:36px; background:${catColor(cat)}22; border-radius:50%; text-align:center; line-height:36px; margin-right:12px;">${catEmoji(cat)}</div>
+        <div style="flex-grow:1;">
+          <div style="display:flex; justify-content:space-between; font-weight:600; font-size:14px; color:#2c3e50;">
+            <span>${cat}</span>
+            <span>${fmt(val)}</span>
+          </div>
+          <div style="background:#eee; height:6px; border-radius:3px; margin-top:6px; overflow:hidden;">
+            <div style="background:${catColor(cat)}; width:${pct}%; height:100%; border-radius:3px;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 
   return `
     <div style="padding:15px;">
-      <div style="background:#185FA5; color:white; padding:20px; border-radius:12px; margin-bottom:15px; text-align:center;">
+      <div style="background:#185FA5; color:white; padding:20px; border-radius:12px; margin-bottom:15px; text-align:center; box-shadow: 0 4px 12px rgba(24,95,165,0.25);">
         <div style="font-size:14px; opacity:0.8;">Net Balance</div>
         <div style="font-size:28px; font-weight:bold; margin-top:5px;">${fmtSgn(bal)}</div>
         <div style="display:flex; justify-content:space-between; margin-top:15px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
-          <div><div>Income</div><div style="font-weight:bold;">${fmt(inc)}</div></div>
-          <div><div>Expenses</div><div style="font-weight:bold;">${fmt(exp)}</div></div>
+          <div><div>Income</div><div style="font-weight:bold; color:#a2ffd2;">${fmt(inc)}</div></div>
+          <div><div>Expenses</div><div style="font-weight:bold; color:#ffb3a2;">${fmt(exp)}</div></div>
         </div>
       </div>
-      <h3>Recent Entries</h3>
-      ${txns.length === 0 ? '<div style="color:#777; text-align:center; padding:20px;">No entries this month. Click + to add!</div>' : 
+
+      ${exp > 0 ? `
+      <div style="background:white; padding:15px; border-radius:12px; margin-bottom:20px; display:flex; flex-direction:column; align-items:center; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+        <h4 style="margin:0 0 12px 0; color:#555; align-self:flex-start;">Expense Structure</h4>
+        <div style="width:140px; height:140px; border-radius:50%; background:conic-gradient(${chartGradientString}); margin-bottom:15px; box-shadow:inset 0 0 10px rgba(0,0,0,0.1);"></div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">
+          ${sortedCats.slice(0,4).map(([cat, val]) => `
+            <div style="display:flex; align-items:center; font-size:11px; color:#555;">
+              <span style="width:8px; height:8px; background:${catColor(cat)}; border-radius:50%; margin-right:4px; display:inline-block;"></span>
+              ${cat} (${((val/exp)*100).toFixed(0)}%)
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
+
+      ${sortedCats.length > 0 ? `<h3 style="margin-bottom:10px; font-size:16px; color:#2c3e50;">Category Wise Analysis</h3>${categoryCardsHTML}<div style="margin-top:20px;"></div>` : ''}
+
+      <h3 style="font-size:16px; color:#2c3e50; margin-bottom:10px;">Recent Entries</h3>
+      ${txns.length === 0 ? '<div style="color:#777; text-align:center; padding:20px; background:white; border-radius:12px;">No entries this month. Click + to add!</div>' : 
         txns.slice(0,5).map(t => `
-          <div onclick="window.openTxnSheet('${t.id}')" style="display:flex; align-items:center; padding:12px; background:white; margin-bottom:8px; border-radius:8px; border-left:4px solid ${t.type==='income'?'#1D9E75':'#D85A30'}; cursor:pointer;">
+          <div onclick="window.openTxnSheet('${t.id}')" style="display:flex; align-items:center; padding:12px; background:white; margin-bottom:8px; border-radius:8px; border-left:4px solid ${t.type==='income'?'#1D9E75':'#D85A30'}; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="font-size:20px; margin-right:12px;">${catEmoji(t.category)}</div>
             <div style="flex-grow:1;"><strong>${t.category}</strong><br><small style="color:#777;">${t.remark || t.date}</small></div>
             <div style="font-weight:bold; color:${t.type==='income'?'#1D9E75':'#D85A30'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
@@ -529,7 +578,7 @@ function renderTransactions() {
     <div style="padding:15px;">
       <h3>All Month Entries</h3>
       ${txns.length === 0 ? '<p style="color:#777;">No entries saved yet.</p>' : txns.map(t => `
-        <div onclick="window.openTxnSheet('${t.id}')" style="display:flex; align-items:center; padding:12px; background:white; margin-bottom:8px; border-radius:8px; cursor:pointer;">
+        <div onclick="window.openTxnSheet('${t.id}')" style="display:flex; align-items:center; padding:12px; background:white; margin-bottom:8px; border-radius:8px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
           <div style="font-size:20px; margin-right:12px;">${catEmoji(t.category)}</div>
           <div style="flex-grow:1;"><strong>${t.category}</strong><br><small style="color:#777;">${t.remark || ''} (${t.date})</small></div>
           <div style="font-weight:bold; color:${t.type==='income'?'#1D9E75':'#D85A30'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
@@ -548,7 +597,7 @@ function renderCategoriesPage() {
         <button class="btn" style="padding:4px 8px; font-size:12px;" onclick="window.addCat('expense')">+ Add</button>
       </div>
       ${cats.expense.map(c => `
-        <div style="display:flex; justify-content:space-between; padding:10px; background:white; margin-bottom:6px; border-radius:6px; align-items:center;">
+        <div style="display:flex; justify-content:space-between; padding:10px; background:white; margin-bottom:6px; border-radius:6px; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
           <div>${catEmoji(c)} ${c}</div>
           <button style="background:none; border:none; font-size:16px; cursor:pointer; padding:0 8px;" onclick="window.toggleCatMenu(event, '${c}', 'expense')">⋮</button>
         </div>
@@ -559,7 +608,7 @@ function renderCategoriesPage() {
         <button class="btn" style="padding:4px 8px; font-size:12px;" onclick="window.addCat('income')">+ Add</button>
       </div>
       ${cats.income.map(c => `
-        <div style="display:flex; justify-content:space-between; padding:10px; background:white; margin-bottom:6px; border-radius:6px; align-items:center;">
+        <div style="display:flex; justify-content:space-between; padding:10px; background:white; margin-bottom:6px; border-radius:6px; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
           <div>${catEmoji(c)} ${c}</div>
           <button style="background:none; border:none; font-size:16px; cursor:pointer; padding:0 8px;" onclick="window.toggleCatMenu(event, '${c}', 'income')">⋮</button>
         </div>
@@ -580,23 +629,10 @@ function renderProfilePage() {
   `;
 }
 
+// Ensure globally bound functions exist across windows
+window.closeSheetNow = function() { document.getElementById('sheetBg').classList.remove('open'); };
+
 // ═══════════════════════════════════════════════
 //  GLOBAL WINDOW EXPOSURE
 // ═══════════════════════════════════════════════
-window.handleAuth = handleAuth;
-window.handleGoogleAuth = handleGoogleAuth;
-window.switchAuthTab = switchAuthTab;
-window.continueAsGuest = continueAsGuest;
-window.logout = logout;
-window.selectBook = selectBook;
-window.createBook = createBook;
-window.openAddBookSheet = openAddBookSheet;
-window.openBooksSheet = openBooksSheet;
-window.showPage = showPage;
-window.selectMonth = selectMonth;
-window.addCat = addCat;
-window.openTxnSheet = openTxnSheet;
-window.updateTxnCatDropdown = updateTxnCatDropdown;
-window.saveTransaction = saveTransaction;
-window.deleteTransaction = deleteTransaction;
-window.toggleCatMenu = toggleCatMenu;
+window.handle
