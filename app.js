@@ -1,44 +1,26 @@
-// Import Firebase core and specified software modules from CDN
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { 
-  getDatabase, 
-  ref, 
-  set, 
-  get 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
 // ═══════════════════════════════════════════════
 //  CONSTANTS & DEFAULTS
 // ═══════════════════════════════════════════════
-const CAT_COLORS={
-  'Entertainment':'#185FA5','Fast Food':'#1D9E75','Grocery':'#D85A30','Home Improvement':'#BA7517',
-  'Travel':'#534AB7','Fuel':'#3B6D11','Dress':'#993C1D','Rent / Bills':'#D4537E',
-  'Salary':'#0F6E56','Freelance':'#963C00','Business':'#2a7a8a','Investment':'#7b3fa0',
-  'Salary Income':'#1D9E75','Business Income':'#2a7a8a','Medical':'#💊','Education':'#📚','Gift':'#🎁','Other':'#95a5a6'
+const CAT_COLORS_MAPPING = {
+  'Entertainment': '#185FA5', 'Fast Food': '#1D9E75', 'Grocery': '#D85A30', 'Home Improvement': '#BA7517',
+  'Travel': '#534AB7', 'Fuel': '#3B6D11', 'Dress': '#993C1D', 'Rent / Bills': '#D4537E',
+  'Salary Income': '#0F6E56', 'Business Income': '#2a7a8a', 'Medical': '#b83b5e', 'Education': '#6a2c70', 
+  'Gift': '#f08a5d', 'Other': '#95a5a6'
 };
+const CAT_COLORS_ARRAY = ['#185FA5','#1D9E75','#D85A30','#BA7517','#534AB7','#3B6D11','#993C1D','#D4537E','#0F6E56','#963C00','#2a7a8a','#7b3fa0'];
 
-const CAT_EMOJI={
+const CAT_EMOJI = {
   'Entertainment':'🎬','Fast Food':'🍔','Grocery':'🛒','Home Improvement':'🏠',
   'Travel':'✈️','Fuel':'⛽','Dress':'👗','Rent / Bills':'🏢',
-  'Salary':'💼','Freelance':'💻','Business':'📊','Investment':'📈',
-  'Medical':'💊','Education':'📚','Gift':'🎁','Other':'📦',
-  'Salary Income':'💼','Business Income':'📊'
+  'Salary Income':'💼','Business Income':'📊','Medical':'💊','Education':'📚','Gift':'🎁','Other':'📦'
 };
 
-const DEFAULT_EXPENSE_CATS=['Entertainment','Fast Food','Grocery','Home Improvement','Travel','Fuel','Dress','Rent / Bills','Medical','Education','Gift','Other'];
-const DEFAULT_INCOME_CATS=['Salary Income','Business Income'];
+const DEFAULT_EXPENSE_CATS = ['Entertainment','Fast Food','Grocery','Home Improvement','Travel','Fuel','Dress','Rent / Bills','Medical','Education','Gift','Other'];
+const DEFAULT_INCOME_CATS = ['Salary Income','Business Income'];
+const BOOK_EMOJIS = ['📒','📓','📔','📕','📗','📘','📙','💼','🏦','🏪','🏠','✈️'];
 
-function catEmoji(n){return CAT_EMOJI[n]||'📦';}
-function catColor(n){return CAT_COLORS[n]||'#7f8c8d';}
+function catEmoji(n){ return CAT_EMOJI[n] || '📦'; }
+function catColor(n, index = 0){ return CAT_COLORS_MAPPING[n] || CAT_COLORS_ARRAY[index % CAT_COLORS_ARRAY.length]; }
 function fmt(n){return '₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});}
 function fmtSgn(n){return (n>=0?'+':'-')+'₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2});}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
@@ -47,26 +29,7 @@ function monthLabel(m){const[y,mo]=m.split('-');return new Date(+y,+mo-1,1).toLo
 function today(){return new Date().toISOString().slice(0,10);}
 
 // ═══════════════════════════════════════════════
-//  FIREBASE INITIALIZATION
-// ═══════════════════════════════════════════════
-const firebaseConfig = {
-  apiKey: "AIzaSyB3Yb3bpHVOts7vlojTznpa-_pslaSbOKU",
-  authDomain: "expense-book-7e014.firebaseapp.com",
-  databaseURL: "https://expense-book-7e014-default-rtdb.firebaseio.com",
-  projectId: "expense-book-7e014",
-  storageBucket: "expense-book-7e014.firebasestorage.app",
-  messagingSenderId: "764188727542",
-  appId: "1:764188727542:web:9d130d81b1bcbda229f4d7",
-  measurementId: "G-E6J7SMQZH1"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-const googleProvider = new GoogleAuthProvider();
-
-// ═══════════════════════════════════════════════
-//  STATE MANAGEMENT
+//  STATE
 // ═══════════════════════════════════════════════
 let S={
   user:null,
@@ -79,76 +42,16 @@ let S={
   currentPage:'dashboard'
 };
 
-onAuthStateChanged(auth, async (firebaseUser) => {
-  if (firebaseUser) {
-    const userRef = ref(db, 'users/' + firebaseUser.uid);
-    try {
-      const snapshot = await get(userRef);
-      if (snapshot.exists()) {
-        const cloudData = snapshot.val();
-        Object.assign(S, cloudData);
-        if(!S.transactions) S.transactions = [];
-        if(!S.categories) S.categories = {};
-      } else {
-        setupNewUserSchema(firebaseUser);
-      }
-      setupUIAfterLogin();
-    } catch (e) {
-      toast("Error downloading profiles.");
-    }
-  } else {
-    showAuthScreen();
-  }
-});
-
-function setupNewUserSchema(firebaseUser) {
-  const generatedBookId = uid();
-  const userName = firebaseUser.displayName || firebaseUser.email.split('@')[0];
-  
-  S.user = { id: firebaseUser.uid, name: userName, email: firebaseUser.email, initials: userName.slice(0,2).toUpperCase() };
-  S.books = [{
-    id: generatedBookId, name: 'My Book', emoji: '📒', ownerId: firebaseUser.uid,
-    members: [{ userId: firebaseUser.uid, email: firebaseUser.email, name: userName, role: 'owner' }]
-  }];
-  S.currentBookId = generatedBookId;
-  S.categories = {};
-  S.categories[generatedBookId] = { expense: [...DEFAULT_EXPENSE_CATS], income: [...DEFAULT_INCOME_CATS] };
-  S.transactions = [];
-  save();
-}
-
-function setupUIAfterLogin() {
-  document.getElementById('authScreen').classList.remove('active');
-  document.getElementById('mainScreen').classList.add('active');
-  
-  const avatarEl = document.getElementById('userAvatar');
-  if(avatarEl) avatarEl.textContent = S.user.initials;
-  
-  const hName = document.getElementById('headerBookName');
-  const hIcon = document.getElementById('headerBookIcon');
-  if(hName && currentBook()) hName.textContent = currentBook().name;
-  if(hIcon && currentBook()) hIcon.textContent = currentBook().emoji;
-  
-  renderMonthTabs();
-  showPage('dashboard');
-  toast('Access Granted ✓');
-}
-
-function showAuthScreen() {
-  document.getElementById('mainScreen').classList.remove('active');
-  document.getElementById('authScreen').classList.add('active');
-}
-
-function save() {
-  if (!S.user || S.isGuest) return;
-  set(ref(db, 'users/' + S.user.id), S).catch((e) => console.error("Cloud engine sync failure:", e));
-}
+// ═══════════════════════════════════════════════
+//  PERSISTENCE
+// ═══════════════════════════════════════════════
+function save(){ try{localStorage.setItem('fp_v2',JSON.stringify(S));}catch(e){} }
+function load(){ try{const raw=localStorage.getItem('fp_v2');if(raw){const d=JSON.parse(raw);Object.assign(S,d);}}catch(e){} }
 
 // ═══════════════════════════════════════════════
-//  AUTHENTICATION ENGINE
+//  AUTH MANAGEMENT
 // ═══════════════════════════════════════════════
 let authMode='login';
-
 function switchAuthTab(m){
   authMode=m;
   document.getElementById('tabLogin').classList.toggle('active',m==='login');
@@ -158,316 +61,181 @@ function switchAuthTab(m){
   document.getElementById('authErr').style.display='none';
 }
 
-function handleAuth() {
-  const emailEl = document.getElementById('fEmail');
-  const passEl = document.getElementById('fPassword');
-  const nameEl = document.getElementById('fName');
-  const err = document.getElementById('authErr');
-  
-  if (err) err.style.display = 'none';
+function getUsers(){ try{return JSON.parse(localStorage.getItem('fp_users')||'[]');}catch{return [];} }
+function saveUsers(u){localStorage.setItem('fp_users',JSON.stringify(u));}
+function hashPassword(v){ let h=0; for(let i=0;i<v.length;i++){ h=((h<<5)-h)+v.charCodeAt(i); h|=0;} return 'h'+Math.abs(h); }
 
-  const email = emailEl ? emailEl.value.trim().toLowerCase() : '';
-  const pass = passEl ? passEl.value : '';
-  const name = nameEl ? nameEl.value.trim() : '';
-
-  if (!email || !pass) { showError('Please complete all form fields.'); return; }
-
-  if (authMode === 'register') {
-    if (!name) { showError('Please provide your full name.'); return; }
-    createUserWithEmailAndPassword(auth, email, pass)
-      .then((userCredential) => {
-        userCredential.user.displayName = name;
-        setupNewUserSchema(userCredential.user);
-      })
-      .catch((e) => { showError(e.message); });
+function handleAuth(){
+  const email=document.getElementById('fEmail').value.trim().toLowerCase();
+  const pass=document.getElementById('fPassword').value;
+  const name=document.getElementById('fName').value.trim();
+  const err=document.getElementById('authErr');
+  err.style.display='none';
+  if(!email||!pass){err.textContent='Please fill in all fields.';err.style.display='block';return;}
+  const users=getUsers();
+  if(authMode==='register'){
+    if(!name){err.textContent='Please enter your name.';err.style.display='block';return;}
+    if(users.find(u=>u.email===email)){err.textContent='Email already registered.';err.style.display='block';return;}
+    if(pass.length<6){err.textContent='Password must be at least 6 characters.';err.style.display='block';return;}
+    const user={id:uid(),email,name,password:hashPassword(pass),initials:name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()};
+    users.push(user);saveUsers(users);
+    loginUser(user);
   } else {
-    signInWithEmailAndPassword(auth, email, pass).catch((e) => { showError('Invalid email or password mismatch.'); });
+    const user=users.find(u=>u.email===email&&u.password===hashPassword(pass));
+    if(!user){err.textContent='Invalid email or password.';err.style.display='block';return;}
+    loginUser(user);
   }
 }
 
-function handleGoogleAuth() {
-  signInWithPopup(auth, googleProvider).catch((error) => { showError(error.message || "Google Authentication canceled."); });
+function handleGoogleAuth(){
+  const email=prompt('Enter your Gmail address:','');
+  if(!email||!email.includes('@'))return;
+  const users=getUsers();
+  let user=users.find(u=>u.email===email.toLowerCase());
+  if(!user){
+    const name=email.split('@')[0];
+    user={id:uid(),email:email.toLowerCase(),name,password:'',initials:name.slice(0,2).toUpperCase(),google:true};
+    users.push(user);saveUsers(users);
+  }
+  loginUser(user);
 }
 
-function showError(msg) {
-  const err = document.getElementById('authErr');
-  if (err) { err.textContent = msg; err.style.display = 'block'; } else { alert(msg); }
+function loginUser(user){
+  const key='fp_data_'+user.id;
+  try{const raw=localStorage.getItem(key);if(raw){const d=JSON.parse(raw);Object.assign(S,d);}}catch{}
+  S.user={id:user.id,name:user.name,email:user.email,initials:user.initials||'U'};
+  if(!S.books||!S.books.length){
+    const book={id:uid(),name:'My Book',emoji:'📒',ownerId:user.id,members:[{userId:user.id,email:user.email,name:user.name,role:'owner'}]};
+    S.books=[book]; S.currentBookId=book.id;
+    S.categories[book.id]={expense:[...DEFAULT_EXPENSE_CATS],income:[...DEFAULT_INCOME_CATS]};
+    S.transactions=S.transactions||[];
+  }
+  if(!S.currentBookId)S.currentBookId=S.books[0].id;
+  save();
+  document.getElementById('authScreen').classList.remove('active');
+  document.getElementById('mainScreen').classList.add('active');
+  document.getElementById('userAvatar').textContent=S.user.initials;
+  document.getElementById('headerBookName').textContent=currentBook().name;
+  document.getElementById('headerBookIcon').textContent=currentBook().emoji;
+  renderMonthTabs();showPage('dashboard');
 }
 
 function continueAsGuest(){
   S.isGuest=true;
-  const guestBook={id:'guest-book',name:'Demo Book',emoji:'📒',ownerId:'guest',members:[]};
-  S.books=[guestBook]; S.currentBookId=guestBook.id;
-  S.categories[guestBook.id]={expense:[...DEFAULT_EXPENSE_CATS],income:[...DEFAULT_INCOME_CATS]};
-  S.transactions=[];
-  setupUIAfterLogin();
-}
-
-function logout(){ 
-  S.isGuest=false; 
-  signOut(auth).then(() => { 
-    S = { user:null, isGuest:false, books:[], currentBookId:null, transactions:[], categories:{}, currentMonth:today().slice(0,7), currentPage:'dashboard' }; 
-    showAuthScreen();
-  }); 
-}
-
-function guestBlocked(){ if(S.isGuest){ toast('Action restricted to verified logins.'); return true; } return false; }
-function toast(msg) { const t = document.getElementById('toast'); if(t) { t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); } }
-
-// ═══════════════════════════════════════════════
-//  TRANSACTIONS SYSTEM CODE
-// ═══════════════════════════════════════════════
-function openTxnSheet(txnId = null) {
-  const sheetBg = document.getElementById('sheetBg');
-  const inner = document.getElementById('sheetInner');
-  if (!sheetBg || !inner) return;
-
-  const existing = txnId ? S.transactions.find(t => t.id === txnId) : null;
-
-  inner.innerHTML = `
-    <div class="sheet-title">${existing ? 'Edit Entry' : 'Add New Entry'} <button class="close-btn" onclick="window.closeSheetNow()">×</button></div>
-    <div class="form-group">
-      <label class="form-label">Type</label>
-      <select class="form-input" id="txnType" onchange="window.updateTxnCatDropdown()">
-        <option value="expense" ${existing?.type === 'expense' ? 'selected' : ''}>Expense (-)</option>
-        <option value="income" ${existing?.type === 'income' ? 'selected' : ''}>Income (+)</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Amount (₹)</label>
-      <input class="form-input" id="txnAmount" type="number" placeholder="0.00" value="${existing ? existing.amount : ''}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Category</label>
-      <select class="form-input" id="txnCategory"></select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Date</label>
-      <input class="form-input" id="txnDate" type="date" value="${existing ? existing.date : today()}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Remark / Note</label>
-      <input class="form-input" id="txnRemark" type="text" placeholder="What was this for?" value="${existing ? (existing.remark || '') : ''}" />
-    </div>
-    <button class="btn btn-primary" onclick="window.saveTransaction('${txnId || ''}')">${existing ? 'Save Changes' : 'Save Entry'}</button>
-    ${existing ? `<button class="btn btn-danger" style="margin-top:8px" onclick="window.deleteTransaction('${txnId}')">Delete Entry</button>` : ''}
-  `;
-
-  sheetBg.classList.add('open');
-  updateTxnCatDropdown(existing ? existing.category : null);
-}
-
-function updateTxnCatDropdown(selectedCat = null) {
-  const type = document.getElementById('txnType').value;
-  const catSelect = document.getElementById('txnCategory');
-  if (!catSelect) return;
-  const cats = bookCats(S.currentBookId, type);
-  catSelect.innerHTML = cats.map(c => `<option value="${c}" ${c === selectedCat ? 'selected' : ''}>${catEmoji(c)} ${c}</option>`).join('');
-}
-
-function saveTransaction(txnId = '') {
-  if (guestBlocked()) return;
-  const type = document.getElementById('txnType').value;
-  const amount = parseFloat(document.getElementById('txnAmount').value);
-  const category = document.getElementById('txnCategory').value;
-  const date = document.getElementById('txnDate').value;
-  const remark = document.getElementById('txnRemark').value.trim();
-
-  if (isNaN(amount) || amount <= 0) { toast("Please enter a valid amount"); return; }
-  if (!category) { toast("Please pick a category"); return; }
-
-  if (txnId) {
-    const idx = S.transactions.findIndex(t => t.id === txnId);
-    if (idx >= 0) S.transactions[idx] = { id: txnId, bookId: S.currentBookId, type, amount, category, date, remark };
-  } else {
-    S.transactions.push({ id: uid(), bookId: S.currentBookId, type, amount, category, date, remark });
+  if(!S.books || !S.books.length){
+    const guestBook={id:'guest-book',name:'Demo Book',emoji:'📒',ownerId:'guest',members:[]};
+    S.books=[guestBook]; S.currentBookId=guestBook.id;
+    S.categories[guestBook.id]={expense:[...DEFAULT_EXPENSE_CATS],income:[...DEFAULT_INCOME_CATS]};
+    S.transactions=[];
   }
-
-  save();
-  if (window.closeSheetNow) window.closeSheetNow();
-  else document.getElementById('sheetBg').classList.remove('open');
-  renderPage();
-  toast(txnId ? "Entry updated ✓" : "Entry logged ✓");
+  document.getElementById('authScreen').classList.remove('active');
+  document.getElementById('mainScreen').classList.add('active');
+  document.getElementById('userAvatar').textContent='👁';
+  document.getElementById('headerBookName').textContent='Guest Mode';
+  document.getElementById('headerBookIcon').textContent='👀';
+  renderMonthTabs();showPage('dashboard');
 }
 
-function deleteTransaction(txnId) {
-  if (guestBlocked()) return;
-  S.transactions = S.transactions.filter(t => t.id !== txnId);
-  save();
-  if (window.closeSheetNow) window.closeSheetNow();
-  else document.getElementById('sheetBg').classList.remove('open');
-  renderPage();
-  toast("Entry deleted");
+function logout(){
+  S.isGuest=false;
+  saveUserData();
+  S={user:null,isGuest:false,books:[],currentBookId:null,transactions:[],categories:{},currentMonth:today().slice(0,7),currentPage:'dashboard'};
+  document.getElementById('mainScreen').classList.remove('active');
+  document.getElementById('authScreen').classList.add('active');
 }
+function guestBlocked(){ if(S.isGuest){ toast('Please login to continue'); return true; } return false; }
+function saveUserData(){ if(!S.user)return; localStorage.setItem('fp_data_'+S.user.id,JSON.stringify({books:S.books,currentBookId:S.currentBookId,transactions:S.transactions,categories:S.categories,currentMonth:S.currentMonth}));}
 
 // ═══════════════════════════════════════════════
-//  CATEGORIES SYSTEM CODE
+//  BOOKS MANAGEMENT ENGINE
 // ═══════════════════════════════════════════════
-function addCat(type) {
-  if (guestBlocked()) return;
-  const name = prompt('Enter new category name:');
-  if (!name || !name.trim()) return;
-  const clean = name.trim();
-  
-  if (!S.categories[S.currentBookId]) {
-    S.categories[S.currentBookId] = { expense: [...DEFAULT_EXPENSE_CATS], income: [...DEFAULT_INCOME_CATS] };
-  }
-  
-  if (S.categories[S.currentBookId][type].includes(clean)) {
-    toast('Category already exists!');
-    return;
-  }
-  
-  S.categories[S.currentBookId][type].push(clean);
-  save();
-  renderPage();
-  toast('Category added ✓');
-}
-
-function toggleCatMenu(e, c, type) {
-  e.stopPropagation();
-  closeAllCatMenus();
-  const btn = e.currentTarget;
-  const rect = btn.getBoundingClientRect();
-
-  const menu = document.createElement('div');
-  menu.className = 'cat-popup-menu';
-  menu.id = 'activeCatMenu';
-  menu.style.position = 'fixed';
-  menu.style.background = 'white';
-  menu.style.border = '1px solid #ccc';
-  menu.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-  menu.style.zIndex = '10000';
-  menu.style.padding = '4px 0';
-  menu.style.borderRadius = '8px';
-
-  const renameBtn = document.createElement('button');
-  renameBtn.style.display = 'block';
-  renameBtn.style.width = '100%';
-  renameBtn.style.padding = '8px 16px';
-  renameBtn.style.background = 'none';
-  renameBtn.style.border = 'none';
-  renameBtn.style.textAlign = 'left';
-  renameBtn.innerHTML = '✏️ Rename';
-  renameBtn.onclick = (ev) => { ev.stopPropagation(); renameCategory(c, type); };
-
-  const deleteBtn = document.createElement('button');
-  deleteBtn.style.display = 'block';
-  deleteBtn.style.width = '100%';
-  deleteBtn.style.padding = '8px 16px';
-  deleteBtn.style.background = 'none';
-  deleteBtn.style.border = 'none';
-  deleteBtn.style.textAlign = 'left';
-  deleteBtn.style.color = 'red';
-  deleteBtn.innerHTML = '🗑 Delete';
-  deleteBtn.onclick = (ev) => { ev.stopPropagation(); confirmDeleteCategory(c, type); };
-
-  menu.appendChild(renameBtn);
-  menu.appendChild(deleteBtn);
-  document.body.appendChild(menu);
-
-  menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
-  menu.style.left = Math.min(rect.left, window.innerWidth - 140) + 'px';
-
-  setTimeout(() => document.addEventListener('click', closeAllCatMenus, { once: true }), 50);
-}
-
-function closeAllCatMenus() { const old = document.getElementById('activeCatMenu'); if (old) old.remove(); }
-
-function renameCategory(c, type) {
-  closeAllCatMenus();
-  const newName = prompt('Rename category', c);
-  if (!newName || !newName.trim() || newName.trim() === c) return;
-  const clean = newName.trim();
-
-  const cats = S.categories[S.currentBookId][type];
-  if (cats.includes(clean)) { toast('Category already exists'); return; }
-  
-  const index = cats.indexOf(c);
-  if (index !== -1) cats[index] = clean;
-
-  S.transactions.forEach(t => { if (t.bookId === S.currentBookId && t.category === c) t.category = clean; });
-  save(); renderPage(); toast('Category renamed ✓');
-}
-
-function confirmDeleteCategory(c, type) {
-  closeAllCatMenus();
-  if (guestBlocked()) return;
-  if (!confirm(`Delete "${c}"?`)) return;
-
-  S.categories[S.currentBookId][type] = S.categories[S.currentBookId][type].filter(item => item !== c);
-  S.transactions = S.transactions.filter(t => !(t.bookId === S.currentBookId && t.category === c));
-  
-  save(); renderPage(); toast('Category deleted ✓');
-}
-
-// ═══════════════════════════════════════════════
-//  BOOKS ENGINE
-// ═══════════════════════════════════════════════
-function currentBook(){return S.books?.find(b=>b.id===S.currentBookId)||S.books?.[0]||{name:'My Book',emoji:'📒'};}
-function bookTxns(bookId,month){return (S.transactions||[]).filter(t=>t.bookId===bookId&&t.date.startsWith(month));}
+function currentBook(){return S.books.find(b=>b.id===S.currentBookId)||S.books[0]||{name:'My Book',emoji:'📒'};}
+function bookTxns(bookId,month){return S.transactions.filter(t=>t.bookId===bookId&&t.date.startsWith(month));}
 function bookCats(bookId,type){
-  if(!S.categories[bookId]){ S.categories[bookId]={ expense:[...DEFAULT_EXPENSE_CATS], income:[...DEFAULT_INCOME_CATS] }; }
+  if(!S.categories) S.categories={};
+  if(!S.categories[bookId]) S.categories[bookId]={expense:[...DEFAULT_EXPENSE_CATS],income:[...DEFAULT_INCOME_CATS]};
   if(type) return S.categories[bookId][type] || [];
-  return [...(S.categories[bookId].expense || []), ...(S.categories[bookId].income || [])];
+  return [...S.categories[bookId].expense, ...S.categories[bookId].income];
 }
 
 function openBooksSheet(){ document.getElementById('sheetBg').classList.add('open'); renderBooksSheet(); }
-function selectBook(id){ S.currentBookId=id; const b=currentBook(); document.getElementById('headerBookName').textContent=b.name; document.getElementById('headerBookIcon').textContent=b.emoji; save(); if(window.closeSheetNow) window.closeSheetNow(); else document.getElementById('sheetBg').classList.remove('open'); renderMonthTabs(); showPage('dashboard'); }
-function openAddBookSheet() {
-  document.getElementById('sheetInner').innerHTML = `
-    <div class="sheet-title">New Book <button class="close-btn" onclick="window.openBooksSheet()">×</button></div>
-    <div class="form-group"><label class="form-label">Book Name</label><input class="form-input" id="newBookName" placeholder="Business, Home..." /></div>
-    <button class="btn btn-primary" onclick="window.createBook()">Create Book</button>
-  `;
+function closeSheetNow(){ document.getElementById('sheetBg').classList.remove('open'); }
+
+function renderBooksSheet(){
+  const items=S.books.map(b=>{
+    const isOwner=b.ownerId===S.user?.id;
+    const isShared=b.members.length>1;
+    const isCurrent=b.id===S.currentBookId;
+    return `<div class="book-item ${isCurrent?'current':''}" onclick="selectBook('${b.id}')">
+      <div class="book-item-icon">${b.emoji}</div>
+      <div class="book-item-body">
+        <div class="book-item-name">${b.name}</div>
+        <div class="book-item-meta">${b.members.length} members · ${isOwner?'Owner':'Member'}</div>
+      </div>
+      ${isShared?`<span class="book-badge shared-badge">Shared</span>`:''}
+      ${isCurrent?`<span class="book-badge">Active</span>`:''}
+    </div>`;
+  }).join('');
+  document.getElementById('sheetInner').innerHTML=`<div class="sheet-title">Your Books<button class="close-btn" onclick="closeSheetNow()">×</button></div>${items}<div class="divider"></div><button class="btn btn-primary" onclick="openAddBookSheet()">+ New Book</button>`;
 }
+
+function selectBook(id){
+  S.currentBookId=id; const b=currentBook();
+  document.getElementById('headerBookName').textContent=b.name;
+  document.getElementById('headerBookIcon').textContent=b.emoji;
+  saveUserData(); closeSheetNow(); renderMonthTabs(); showPage('dashboard');
+}
+
+function openAddBookSheet(){
+  document.getElementById('sheetInner').innerHTML=`
+    <div class="sheet-title">New Book <button class="close-btn" onclick="openBooksSheet()">×</button></div>
+    <div class="form-group"><label class="form-label">Book Name</label><input class="form-input" id="newBookName" placeholder="e.g. Business..." /></div>
+    <div class="form-group">
+      <label class="form-label">Icon</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px" id="emojiPicker">
+        ${BOOK_EMOJIS.map((e,i)=>`<div class="cat-chip ${i===0?'selected':''}" onclick="pickEmoji(this,'${e}')">${e}</div>`).join('')}
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="createBook()">Create Book</button>
+  `;
+  window._newBookEmoji=BOOK_EMOJIS[0];
+}
+
+function pickEmoji(el,e){ document.querySelectorAll('#emojiPicker .cat-chip').forEach(c=>c.classList.remove('selected')); el.classList.add('selected'); window._newBookEmoji=e; }
+
 function createBook(){
   if(guestBlocked()) return;
   const name=document.getElementById('newBookName').value.trim();
   if(!name){toast('Enter a book name');return;}
-  const book={id:uid(),name,emoji:'📒',ownerId:S.user.id,members:[{userId:S.user.id,email:S.user.email,name:S.user.name,role:'owner'}]};
+  const book={id:uid(),name,emoji:window._newBookEmoji||'📒',ownerId:S.user.id,members:[{userId:S.user.id,email:S.user.email,name:S.user.name,role:'owner'}]};
   S.books.push(book);
-  S.categories[book.id]={ expense:[...DEFAULT_EXPENSE_CATS], income:[...DEFAULT_INCOME_CATS] };
+  S.categories[book.id]={expense:[...DEFAULT_EXPENSE_CATS],income:[...DEFAULT_INCOME_CATS]};
   S.currentBookId=book.id;
   document.getElementById('headerBookName').textContent=book.name;
   document.getElementById('headerBookIcon').textContent=book.emoji;
-  save(); if(window.closeSheetNow) window.closeSheetNow(); else document.getElementById('sheetBg').classList.remove('open'); renderMonthTabs(); showPage('dashboard'); toast('Book created ✓');
-}
-
-function renderBooksSheet(){
-  const items=(S.books || []).map(b=>{
-    const isCurrent=b.id===S.currentBookId;
-    return `<div class="book-item ${isCurrent?'current':''}" onclick="window.selectBook('${b.id}')" style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #eee; cursor:pointer;">
-      <div style="margin-right:10px;">${b.emoji}</div>
-      <div style="flex-grow:1;">${b.name}</div>
-      ${isCurrent?'<span style="font-size:12px; color:#185FA5; font-weight:bold;">Active</span>':''}
-    </div>`;
-  }).join('');
-  document.getElementById('sheetInner').innerHTML=`<div class="sheet-title">Your Books<button class="close-btn" onclick="window.closeSheetNow()">×</button></div>${items}<div style="margin-top:15px;"></div><button class="btn btn-primary" onclick="window.openAddBookSheet()">+ New Book</button>`;
+  saveUserData(); closeSheetNow(); renderMonthTabs(); showPage('dashboard');
 }
 
 // ═══════════════════════════════════════════════
-//  UI PAGES GENERATOR (WITH PIE CHART & CAT CARDS)
+//  NAVIGATION & RENDER CONTROLLER
 // ═══════════════════════════════════════════════
 function showPage(page){
   S.currentPage=page;
-  ['navDashboard','navTransactions','navCategories','navProfile'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.classList.toggle('active', id.toLowerCase().includes(page));
+  ['dashboard','transactions','categories','profile'].forEach(p=>{
+    const el = document.getElementById('nav'+p.charAt(0).toUpperCase()+p.slice(1));
+    if(el) el.classList.toggle('active', p===page);
   });
-  const fab = document.getElementById('fabBtn');
-  if(fab) fab.style.display=(page==='categories'||page==='profile')?'none':'flex';
+  document.getElementById('fabBtn').style.display=page==='categories'||page==='profile'?'none':'flex';
   renderMonthTabs(); renderPage();
 }
 
 function renderMonthTabs(){
   const el=document.getElementById('monthScroll');
-  if(!el) return;
-  if(S.currentPage==='categories'||S.currentPage==='profile'){el.innerHTML='';return;}
+  if(!el || S.currentPage==='categories'||S.currentPage==='profile'){ if(el) el.innerHTML=''; return; }
   const allMonths=new Set([S.currentMonth]);
   (S.transactions||[]).filter(t=>t.bookId===S.currentBookId).forEach(t=>allMonths.add(monthKey(t.date)));
   const sorted=[...allMonths].sort().reverse().slice(0,12);
-  el.innerHTML=sorted.map(m=>`<div class="month-chip ${m===S.currentMonth?'active':''}" onclick="window.selectMonth('${m}')">${monthLabel(m)}</div>`).join('');
+  el.innerHTML=sorted.map(m=>`<div class="month-chip ${m===S.currentMonth?'active':''}" onclick="selectMonth('${m}')">${monthLabel(m)}</div>`).join('');
 }
 
 function selectMonth(m){S.currentMonth=m;renderMonthTabs();renderPage();}
@@ -475,164 +243,162 @@ function selectMonth(m){S.currentMonth=m;renderMonthTabs();renderPage();}
 function renderPage(){
   const el=document.getElementById('pageContent');
   if(!el) return;
-  if(S.currentPage=='dashboard') el.innerHTML=renderDashboard();
-  else if(S.currentPage=='transactions') el.innerHTML=renderTransactions();
-  else if(S.currentPage=='categories') el.innerHTML=renderCategoriesPage();
+  if(S.currentPage==='dashboard') el.innerHTML=renderDashboard();
+  else if(S.currentPage==='transactions') el.innerHTML=renderTransactions();
+  else if(S.currentPage==='categories') el.innerHTML=renderCategoriesPage();
   else el.innerHTML=renderProfilePage();
 }
 
-function renderDashboard() {
-  const txns = bookTxns(S.currentBookId, S.currentMonth);
-  let inc = 0, exp = 0;
-  
-  // Calculate Category-wise summaries
-  const catSums = {};
-  txns.forEach(t => { 
-    if(t.type==='income') {
-      inc+=t.amount; 
-    } else {
-      exp+=t.amount;
-      catSums[t.category] = (catSums[t.category] || 0) + t.amount;
-    }
-  });
-  const bal = inc - exp;
+// ═══════════════════════════════════════════════
+//  DASHBOARD & CHART VIEW SYSTEM
+// ═══════════════════════════════════════════════
+function renderDashboard(){
+  const txns=bookTxns(S.currentBookId,S.currentMonth);
+  const totalIncome=txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const totalExpense=txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const balance=totalIncome-totalExpense;
 
-  // Generate CSS Conic Gradient string for Pie Chart slices
-  let chartGradientString = '#f2f2f2 0 100%';
-  let accumulatedPercent = 0;
-  const sortedCats = Object.entries(catSums).sort((a,b) => b[1] - a[1]);
+  const cats=bookCats(S.currentBookId,'expense');
+  const catMap={};
+  txns.filter(t=>t.type==='expense').forEach(t=>{ catMap[t.category]=(catMap[t.category]||0)+t.amount; });
+  const sorted=Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+  const recent=[...txns].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
 
-  if (exp > 0 && sortedCats.length > 0) {
-    const pieces = sortedCats.map(([cat, val]) => {
-      const start = accumulatedPercent;
-      const percent = (val / exp) * 100;
-      accumulatedPercent += percent;
-      return `${catColor(cat)} ${start.toFixed(1)}% ${accumulatedPercent.toFixed(1)}%`;
-    });
-    chartGradientString = pieces.join(', ');
-  }
-
-  // Generate Category-Wise Breakdown Elements
-  const categoryCardsHTML = sortedCats.map(([cat, val]) => {
-    const pct = exp > 0 ? ((val / exp) * 100).toFixed(0) : 0;
+  const recentRows=recent.length ? recent.map(t=>{
+    const idx=cats.indexOf(t.category);
+    const col=catColor(t.category, idx);
     return `
-      <div style="display:flex; align-items:center; background:white; padding:12px; margin-bottom:8px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-        <div style="font-size:20px; width:36px; height:36px; background:${catColor(cat)}22; border-radius:50%; text-align:center; line-height:36px; margin-right:12px;">${catEmoji(cat)}</div>
-        <div style="flex-grow:1;">
-          <div style="display:flex; justify-content:space-between; font-weight:600; font-size:14px; color:#2c3e50;">
-            <span>${cat}</span>
-            <span>${fmt(val)}</span>
-          </div>
-          <div style="background:#eee; height:6px; border-radius:3px; margin-top:6px; overflow:hidden;">
-            <div style="background:${catColor(cat)}; width:${pct}%; height:100%; border-radius:3px;"></div>
-          </div>
-        </div>
+    <div class="txn-item" onclick="openTxnSheet('${t.id}')">
+      <div class="txn-icon" style="background:${col}22; color:${col}">${catEmoji(t.category)}</div>
+      <div class="txn-body">
+        <div class="txn-cat">${t.category}</div>
+        <div class="txn-meta">${t.remark||t.date}</div>
       </div>
-    `;
-  }).join('');
+      <div class="txn-right">
+        <div class="txn-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty-state"><div class="empty-text">No transactions yet</div></div>`;
+
+  // Safely defer layout calculation until content renders safely on parent container
+  setTimeout(() => { if(sorted.length) renderExpenseChart(catMap); }, 50);
 
   return `
-    <div style="padding:15px;">
-      <div style="background:#185FA5; color:white; padding:20px; border-radius:12px; margin-bottom:15px; text-align:center; box-shadow: 0 4px 12px rgba(24,95,165,0.25);">
-        <div style="font-size:14px; opacity:0.8;">Net Balance</div>
-        <div style="font-size:28px; font-weight:bold; margin-top:5px;">${fmtSgn(bal)}</div>
-        <div style="display:flex; justify-content:space-between; margin-top:15px; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
-          <div><div>Income</div><div style="font-weight:bold; color:#a2ffd2;">${fmt(inc)}</div></div>
-          <div><div>Expenses</div><div style="font-weight:bold; color:#ffb3a2;">${fmt(exp)}</div></div>
-        </div>
+    <div class="summary-wrap">
+      <div class="s-card"><div class="s-label">Income</div><div class="s-val income">${fmt(totalIncome)}</div></div>
+      <div class="s-card"><div class="s-label">Expense</div><div class="s-val expense">${fmt(totalExpense)}</div></div>
+      <div class="s-card balance-card">
+        <div class="s-label">Balance — ${monthLabel(S.currentMonth)}</div>
+        <div class="s-val ${balance>=0?'':'negative'}">${fmtSgn(balance)}</div>
       </div>
-
-      ${exp > 0 ? `
-      <div style="background:white; padding:15px; border-radius:12px; margin-bottom:20px; display:flex; flex-direction:column; align-items:center; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
-        <h4 style="margin:0 0 12px 0; color:#555; align-self:flex-start;">Expense Structure</h4>
-        <div style="width:140px; height:140px; border-radius:50%; background:conic-gradient(${chartGradientString}); margin-bottom:15px; box-shadow:inset 0 0 10px rgba(0,0,0,0.1);"></div>
-        <div style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">
-          ${sortedCats.slice(0,4).map(([cat, val]) => `
-            <div style="display:flex; align-items:center; font-size:11px; color:#555;">
-              <span style="width:8px; height:8px; background:${catColor(cat)}; border-radius:50%; margin-right:4px; display:inline-block;"></span>
-              ${cat} (${((val/exp)*100).toFixed(0)}%)
-            </div>
-          `).join('')}
-        </div>
-      </div>
-      ` : ''}
-
-      ${sortedCats.length > 0 ? `<h3 style="margin-bottom:10px; font-size:16px; color:#2c3e50;">Category Wise Analysis</h3>${categoryCardsHTML}<div style="margin-top:20px;"></div>` : ''}
-
-      <h3 style="font-size:16px; color:#2c3e50; margin-bottom:10px;">Recent Entries</h3>
-      ${txns.length === 0 ? '<div style="color:#777; text-align:center; padding:20px; background:white; border-radius:12px;">No entries this month. Click + to add!</div>' : 
-        txns.slice(0,5).map(t => `
-          <div onclick="window.openTxnSheet('${t.id}')" style="display:flex; align-items:center; padding:12px; background:white; margin-bottom:8px; border-radius:8px; border-left:4px solid ${t.type==='income'?'#1D9E75':'#D85A30'}; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-            <div style="font-size:20px; margin-right:12px;">${catEmoji(t.category)}</div>
-            <div style="flex-grow:1;"><strong>${t.category}</strong><br><small style="color:#777;">${t.remark || t.date}</small></div>
-            <div style="font-weight:bold; color:${t.type==='income'?'#1D9E75':'#D85A30'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
-          </div>
-        `).join('')}
     </div>
-  `;
+    ${sorted.length ? `
+    <div class="section">
+      <div class="section-title">Expense Breakdown</div>
+      <div style="position:relative; height:240px; margin:auto; max-width:300px;">
+        <canvas id="expenseChart"></canvas>
+      </div>
+    </div>`:''}
+    <div class="section">
+      <div class="section-hdr"><div class="section-title">Recent Entries</div></div>
+      ${recentRows}
+    </div>`;
 }
 
-function renderTransactions() {
-  const txns = bookTxns(S.currentBookId, S.currentMonth);
-  return `
-    <div style="padding:15px;">
-      <h3>All Month Entries</h3>
-      ${txns.length === 0 ? '<p style="color:#777;">No entries saved yet.</p>' : txns.map(t => `
-        <div onclick="window.openTxnSheet('${t.id}')" style="display:flex; align-items:center; padding:12px; background:white; margin-bottom:8px; border-radius:8px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-          <div style="font-size:20px; margin-right:12px;">${catEmoji(t.category)}</div>
-          <div style="flex-grow:1;"><strong>${t.category}</strong><br><small style="color:#777;">${t.remark || ''} (${t.date})</small></div>
-          <div style="font-weight:bold; color:${t.type==='income'?'#1D9E75':'#D85A30'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
+let expenseChartInstance=null;
+function renderExpenseChart(catMap){
+  const canvas=document.getElementById('expenseChart');
+  if(!canvas) return;
+  if(expenseChartInstance){ expenseChartInstance.destroy(); }
+
+  const labels=Object.keys(catMap);
+  const data=Object.values(catMap);
+  const colors=labels.map((l, i) => catColor(l, i));
+
+  expenseChartInstance=new Chart(canvas,{
+    type:'doughnut',
+    data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:1 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'70%', plugins:{ legend:{ position:'bottom' } } }
+  });
 }
 
-function renderCategoriesPage() {
-  const cats = S.categories[S.currentBookId] || { expense: [...DEFAULT_EXPENSE_CATS], income: [...DEFAULT_INCOME_CATS] };
-  return `
-    <div style="padding:15px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3>Expense Categories</h3>
-        <button class="btn" style="padding:4px 8px; font-size:12px;" onclick="window.addCat('expense')">+ Add</button>
+function renderTransactions(){
+  const txns=bookTxns(S.currentBookId,S.currentMonth).sort((a,b)=>b.date.localeCompare(a.date));
+  const cats=bookCats(S.currentBookId,'expense');
+  if(!txns.length) return `<div class="empty-state">No entries for ${monthLabel(S.currentMonth)}</div>`;
+  return `<div class="section">${txns.map(t=>{
+    const idx=cats.indexOf(t.category);
+    const col=catColor(t.category, idx);
+    return `<div class="txn-item" onclick="openTxnSheet('${t.id}')">
+      <div class="txn-icon" style="background:${col}22">${catEmoji(t.category)}</div>
+      <div class="txn-body">
+        <div class="txn-cat">${t.category} <span class="badge ${t.type}">${t.type}</span></div>
+        <div class="txn-meta">${t.remark || t.date}</div>
       </div>
-      ${cats.expense.map(c => `
-        <div style="display:flex; justify-content:space-between; padding:10px; background:white; margin-bottom:6px; border-radius:6px; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-          <div>${catEmoji(c)} ${c}</div>
-          <button style="background:none; border:none; font-size:16px; cursor:pointer; padding:0 8px;" onclick="window.toggleCatMenu(event, '${c}', 'expense')">⋮</button>
-        </div>
-      `).join('')}
-
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
-        <h3>Income Categories</h3>
-        <button class="btn" style="padding:4px 8px; font-size:12px;" onclick="window.addCat('income')">+ Add</button>
-      </div>
-      ${cats.income.map(c => `
-        <div style="display:flex; justify-content:space-between; padding:10px; background:white; margin-bottom:6px; border-radius:6px; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-          <div>${catEmoji(c)} ${c}</div>
-          <button style="background:none; border:none; font-size:16px; cursor:pointer; padding:0 8px;" onclick="window.toggleCatMenu(event, '${c}', 'income')">⋮</button>
-        </div>
-      `).join('')}
-    </div>
-  `;
+      <div class="txn-right"><div class="txn-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div></div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
-function renderProfilePage() {
-  return `
-    <div style="padding:15px; text-align:center;">
-      <div style="width:70px; height:70px; background:#185FA5; color:white; font-size:24px; font-weight:bold; line-height:70px; border-radius:50%; margin:20px auto;">${S.user?.initials || 'G'}</div>
-      <h3>${S.user?.name || 'Guest User'}</h3>
-      <p style="color:#777; font-size:14px; margin-top:-5px;">${S.user?.email || 'Offline Sandbox Mode'}</p>
-      <div style="margin-top:30px;"></div>
-      <button class="btn btn-danger" style="width:100%; max-width:200px;" onclick="window.logout()">Logout Securely</button>
-    </div>
-  `;
+function renderCategoriesPage(){
+  const expenseCats=bookCats(S.currentBookId,'expense');
+  const incomeCats=bookCats(S.currentBookId,'income');
+
+  const genRows = (arr, type) => arr.map((c,i)=> `
+    <div class="manage-cat-item" style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #eee;">
+      <span class="cat-name">${catEmoji(c)} ${c}</span>
+      <button class="cat-menu-btn" onclick="toggleCatMenu(event,'${c}','${type}')">⋮</button>
+    </div>`).join('');
+
+  return `<div class="section">
+    <div class="section-title">Expense Categories</div>${genRows(expenseCats, 'expense')}
+    <div class="add-row" style="display:flex; gap:8px; margin-top:12px;"><input class="form-input" id="newExpenseCat" placeholder="Add expense..." /><button class="btn-sq" onclick="addCat('expense')">+</button></div>
+    <hr style="margin:22px 0; border:none; border-top:1px solid #eee;">
+    <div class="section-title">Income Categories</div>${genRows(incomeCats, 'income')}
+    <div class="add-row" style="display:flex; gap:8px; margin-top:12px;"><input class="form-input" id="newIncomeCat" placeholder="Add income..." /><button class="btn-sq" onclick="addCat('income')">+</button></div>
+  </div>`;
 }
 
-// Ensure globally bound functions exist across windows
-window.closeSheetNow = function() { document.getElementById('sheetBg').classList.remove('open'); };
+function addCat(type){
+  if(guestBlocked()) return;
+  const inp=document.getElementById(type==='income'?'newIncomeCat':'newExpenseCat');
+  const n=inp?.value.trim(); if(!n){ return; }
+  const id=S.currentBookId;
+  if(S.categories[id][type].includes(n)){ return; }
+  S.categories[id][type].push(n);
+  inp.value=''; saveUserData(); renderPage();
+}
 
-// ═══════════════════════════════════════════════
-//  GLOBAL WINDOW EXPOSURE
-// ═══════════════════════════════════════════════
-window.handle
+function toggleCatMenu(e,c,type){
+  e.stopPropagation(); closeAllCatMenus();
+  const btn=e.currentTarget; const rect=btn.getBoundingClientRect();
+  const menu=document.createElement('div');
+  menu.id='activeCatMenu'; menu.style.position='fixed'; menu.style.top=(rect.bottom+6)+'px'; menu.style.left=Math.min(rect.left, window.innerWidth-150)+'px';
+  menu.style.background='white'; menu.style.border='1px solid #ccc'; menu.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)'; menu.style.borderRadius='4px';
+
+  const delBtn=document.createElement('button'); delBtn.style.padding='8px 12px'; delBtn.style.background='none'; delBtn.style.border='none'; delBtn.style.color='red'; delBtn.innerHTML='🗑 Delete';
+  delBtn.onclick=()=> { confirmDeleteCategory(c,type); };
+  menu.appendChild(delBtn); document.body.appendChild(menu);
+  setTimeout(()=>{ document.addEventListener('click', closeAllCatMenus, {once:true}); },50);
+}
+function closeAllCatMenus(){ const old=document.getElementById('activeCatMenu'); if(old) old.remove(); }
+
+function confirmDeleteCategory(c,type){
+  closeAllCatMenus(); if(guestBlocked()) return;
+  if(!confirm(`Are you sure you want to delete "${c}"?`)) return;
+  const id=S.currentBookId;
+  S.categories[id][type]=S.categories[id][type].filter(x=>x!==c);
+  saveUserData(); renderPage();
+}
+
+function renderProfilePage(){
+  const u=S.user || {name:'Guest', initials:'G', email:'-'};
+  return `<div class="profile-section" style="padding:15px; text-align:center;">
+    <div class="profile-avatar" style="width:60px; height:60px; background:#185FA5; color:white; border-radius:50%; margin:auto; line-height:60px; font-weight:bold;">${u.initials}</div>
+    <h3>${u.name}</h3><p>${u.email}</p>
+    <button class="btn btn-danger" onclick="logout()" style="margin-top:20px;">Logout Securely</button>
+  </div>`;
+}
+
+// Global initialization call on load
+window.onload = function() { load(); };
