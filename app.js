@@ -511,3 +511,51 @@ window.pickEmoji = pickEmoji;
 window.showPage = showPage;
 window.selectMonth = selectMonth;
 window.addCat = addCat;
+// AUTH
+window.handleAuth = handleAuth;
+window.switchAuthTab = switchAuthTab;
+window.continueAsGuest = continueAsGuest;
+window.logout = logout;
+window.confirmLogout = confirmLogout;
+
+// NAVIGATION
+window.showPage = showPage;
+window.selectMonth = selectMonth;
+
+// TRANSACTIONS
+window.openTxnSheet = openTxnSheet;
+window.saveTxn = saveTxn;
+window.deleteTxn = deleteTxn;
+window.setTxnType = setTxnType;
+window.selCat = selCat;
+
+// CATEGORIES
+window.addCat = addCat;
+window.deleteCat = deleteCat;
+window.renameCategory = renameCategory;
+window.toggleCatMenu = toggleCatMenu;
+window.confirmDeleteCategory = confirmDeleteCategory;
+
+// BOOKS
+window.openBooksSheet = openBooksSheet;
+window.renderBooksSheet = renderBooksSheet;
+window.selectBook = selectBook;
+window.openAddBookSheet = openAddBookSheet;
+window.createBook = createBook;
+window.openJoinBookSheet = openJoinBookSheet;
+window.joinBook = joinBook;
+window.pickEmoji = pickEmoji;
+
+// SHARE
+window.openShareSheet = openShareSheet;
+window.copyBookId = copyBookId;
+window.inviteByEmail = inviteByEmail;
+window.removeMember = removeMember;
+
+// SHEETS
+window.closeSheet = closeSheet;
+window.closeSheetNow = closeSheetNow;
+
+// EXPORT
+window.exportCSV = exportCSV;
+window.exportPDF = exportPDF;
