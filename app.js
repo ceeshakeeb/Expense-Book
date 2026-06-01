@@ -90,7 +90,7 @@ onAuthStateChanged(auth, async (firebaseUser) => {
       }
       setupUIAfterLogin();
     } catch (e) {
-      toast("Error downloading profile data.");
+     console.error("Error downloading profile data.");
     }
   } else {
     // Session is logged out completely
