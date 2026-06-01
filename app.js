@@ -516,7 +516,6 @@ window.handleAuth = handleAuth;
 window.switchAuthTab = switchAuthTab;
 window.continueAsGuest = continueAsGuest;
 window.logout = logout;
-window.confirmLogout = confirmLogout;
 
 // NAVIGATION
 window.showPage = showPage;
